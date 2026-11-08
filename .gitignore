@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# 가상환경
+.venv/
+venv/
+.env
+
+# 도구 캐시
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# 에디터 / OS
+.vscode/
+.idea/
+.DS_Store
+*:Zone.Identifier
+
+# 생성 산출물 (스크립트로 재생성 가능)
+data/interim/*
+!data/interim/.gitkeep
+reports/figures/*
+!reports/figures/.gitkeep
+
+# 제주농산물수급관리센터 수집 데이터: 이용약관상 무단 복제·유통 금지 → git에 올리지 않음
+# (python scripts/collect_jasdc.py 로 재수집)
+data/raw/jasdc/
+data/processed/citrus_*.csv
+data/raw/jasdc_manual/
+data/raw/distribution/
+data/processed/noji_*.csv
+data/processed/varieties_summary.csv

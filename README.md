@@ -5,6 +5,21 @@
 > 📌 **현재 단계: Phase 2 — 정제 파이프라인·심화 분석** (Phase 1 EDA 완료)
 > 상세 요구사항과 진행 상황은 [`docs/requirements_spec.md`](docs/requirements_spec.md)를 참고하세요.
 
+## 팀 검증용 감귤 도우미
+
+별도 [`citrus_freellm`](citrus_freellm/README.md) 패키지에서 통계 조회·검증,
+공개 분석 자료에 근거한 설명, 사용자 가정 계산과 리포트를 제공합니다.
+Streamlit 화면은 저장소 루트에서 다음 명령으로 실행합니다.
+
+```powershell
+python -m pip install -r citrus_freellm/requirements-ui.txt
+python -m streamlit run citrus_freellm/web.py --server.address 127.0.0.1 --browser.gatherUsageStats false
+```
+
+원자료 조회의 자연어 해석에는 자신의 FreeLLMAPI 서버·키가 필요합니다.
+등록된 분석 설명과 가정 계산은 API 없이 사용할 수 있습니다.
+[팀 검증 순서와 예상 결과](citrus_freellm/docs/TEAM_REVIEW.md)를 참고하세요.
+
 ---
 
 ## 🔍 주요 발견

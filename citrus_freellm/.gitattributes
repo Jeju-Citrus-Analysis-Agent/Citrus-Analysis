@@ -1,0 +1,3 @@
+# 해시로 검증하는 근거 파일은 Windows에서도 LF 바이트를 유지한다.
+knowledge/*.json text eol=lf
+knowledge/sources/*.md text eol=lf

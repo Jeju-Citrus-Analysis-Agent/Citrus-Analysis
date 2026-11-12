@@ -1,0 +1,12 @@
+[
+  {"id":"previous_year_area","seed":"2019년 천혜향 생산면적","question":"그 전해는?","years":[2018],"metrics":["생산면적_ha"]},
+  {"id":"previous_year_harvest_amount","seed":"2019년 천혜향 생산면적","question":"천혜향은 그 전해에 얼마나 났어?","years":[2018],"metrics":["생산량_톤"]},
+  {"id":"exclude_area","seed":"2019년과 2020년 천혜향 생산량과 면적 비교","question":"면적만 빼고 보여줘","years":[2019,2020],"metrics":["생산량_톤"]},
+  {"id":"exclude_production","seed":"2019년과 2020년 천혜향 생산량과 면적 비교","question":"생산량은 제외하고 알려줘","years":[2019,2020],"metrics":["생산면적_ha"]},
+  {"id":"pair_difference","seed":"2019년과 2020년 천혜향 생산량과 면적 비교","question":"두 해 차이는?","years":[2019,2020],"metrics":["생산량_톤","생산면적_ha"]},
+  {"id":"compare_previous","seed":"2019년 천혜향 생산면적","question":"그 전해와 비교하면?","years":[2018,2019],"metrics":["생산면적_ha"]},
+  {"id":"ambiguous_anchor","seed":"2019년과 2020년 천혜향 생산량 비교","question":"그 전해는?","blocked":true},
+  {"id":"no_context","seed":null,"question":"두 해 차이는?","blocked":true},
+  {"id":"exclude_everything","seed":"2019년 천혜향 생산면적","question":"면적만 빼고 보여줘","blocked":true},
+  {"id":"harvest_amount_synonym","seed":null,"question":"2019년 천혜향 수확량은?","years":[2019],"metrics":["생산량_톤"]}
+]

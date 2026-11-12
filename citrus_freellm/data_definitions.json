@@ -1,0 +1,80 @@
+{
+  "fruit_production": {
+    "path":"data/raw/public/fruit_production.csv", "title":"제주 과수 품종별 생산 통계", "time_column":"기준연도", "time_kind":"year", "documented_period":"2015~2020",
+    "grain":"원본은 기준연도 × 품종대분류 × 품종소분류. 정제 후 연도 × 정규화 품종. 감귤 재배형태와 만감류 세부 품종은 집계수준이 달라 합산 금지",
+    "keys":["기준연도","품종대분류","품종소분류"], "chat_support":"생산량·생산면적 조회·비교, 동일 집계수준 순위, 연도 평균 지원",
+    "origin":"프로젝트 명세상 제주데이터허브 과수 통계. 외부 원출처의 상세 지표 정의는 별도 확인하지 않음",
+    "references":["docs/requirements_spec.md §2.1~2.2, Q4", "src/jeju_citrus/data/clean_quality.py: clean_fruit_production"],
+    "quality":["2017년 면적 통계 단절: 이를 가로지르는 면적·면적당 지표 직접 비교 금지", "원본 대분류 오기와 만감류/기타 명칭은 정제 함수에서 보정", "생산면적이 수확면적 또는 재배면적과 같은 정의라는 근거는 확인되지 않음"],
+    "fields":{
+      "기준연도":{"unit":"년", "definition":"원자료의 기준연도", "status":"열 이름 확인"},
+      "품종대분류":{"unit":null, "definition":"원본 분류. 일부 연도 오기가 있어 그대로 집계하지 않음", "status":"정제 코드 확인"},
+      "품종소분류":{"unit":null, "definition":"원본 품종명 또는 재배형태. 정제 시 기타 명칭 보정", "status":"정제 코드 확인"},
+      "생산면적(ha)":{"unit":"ha", "definition":"원자료에 생산면적으로 기재된 면적. 수확·재배면적과의 포함관계 및 상세 산정 기준 미확인", "status":"단위 확인 / 상세 정의 미확인"},
+      "생산량(톤)":{"unit":"톤", "definition":"해당 연도·품종의 원자료 생산량. 출하량·처리량·판매량으로 간주하지 않음", "status":"열 이름·단위 확인 / 세부 집계 기준 미확인"}
+    }
+  },
+  "jeju_special_crops": {
+    "path":"data/processed/jeju_special_crops.csv", "title":"제주 특용작물 통계 (지역 추출본)", "time_column":"기준 연도", "time_kind":"year", "documented_period":"2010~2023",
+    "grain":"기준 연도 × 시도 × 품명. 중복·소계가 남아 있어 합산 주의", "keys":["기준 연도","시도","품명"], "chat_support":"자료 안내만 지원. 수치 분석은 아직 검증 범위 밖",
+    "origin":"data/raw/public/crop_production.csv에서 제주특별자치도만 추출. 제주데이터허브 출처는 프로젝트 명세에서 추정으로 기재",
+    "references":["docs/requirements_spec.md §2.2, Q5", "src/jeju_citrus/data/make_dataset.py: filter_jeju", "src/jeju_citrus/data/clean_quality.py: clean_special_crops"],
+    "quality":["이 processed 파일은 지역 추출본이며 Q5 품질 정제 완료본이 아님", "품목군 소계·중복·미재배 행 및 단수 결측·이상값에 주의", "재배면적·수확면적은 별도 열이다. 과수 통계의 생산면적과 동일 정의로 합치지 않음"],
+    "fields":{
+      "기준 연도":{"unit":"년", "definition":"원자료의 기준 연도", "status":"열 이름 확인"},
+      "시도":{"unit":null, "definition":"제주특별자치도로 추출한 지역", "status":"생성 코드 확인"},
+      "품명":{"unit":null, "definition":"특용작물 품목 또는 품목군 소계", "status":"품질 문서 확인"},
+      "농가수[호]":{"unit":"호", "definition":"원자료 농가수. 상세 조사 기준 미확인", "status":"열 이름·단위 확인"},
+      "재배면적[ha]":{"unit":"ha", "definition":"원자료 재배면적. 수확면적과 별도 열이며 상세 포함관계 미확인", "status":"단위 확인 / 상세 정의 미확인"},
+      "수확면적[ha]":{"unit":"ha", "definition":"원자료 수확면적. 과수 생산면적의 대체값으로 사용하지 않음", "status":"단위 확인 / 상세 정의 미확인"},
+      "단수[kg/10a]":{"unit":"kg/10a", "definition":"원자료 단수. 결측·0·이상값이 있어 그대로 활용 주의", "status":"품질 문서 확인"},
+      "생산량[M/T]":{"unit":"톤 (M/T)", "definition":"원자료 특용작물 생산량. 과수 품종 통계와 대상이 다름", "status":"열 이름·단위 확인"}
+    }
+  },
+  "weather_daily": {
+    "path":"data/processed/weather_daily.csv", "title":"4개 지점 일별 기상", "time_column":"일자", "time_kind":"date", "documented_period":"2004~2026-11 (문서 기준)",
+    "grain":"지점코드 × 일자", "keys":["지점코드","일자"], "chat_support":"자료 안내만 지원. 기상 수치·상관 분석은 아직 검증 범위 밖",
+    "origin":"프로젝트 명세상 기상청 ASOS 일자료. data/external/weather/asos_daily_*.csv에서 생성",
+    "references":["src/jeju_citrus/data/clean_weather.py: load_daily", "docs/requirements_spec.md §2.2"],
+    "quality":["제주·고산·성산·서귀포 4개 지점이며 제주 전체 면적 평균이 아님", "코드에서 강수량 빈칸을 0으로 처리", "일사량은 제주·고산에만 관측값이 있다고 정제 코드에 명시. 결측을 0으로 바꾸지 않음", "관측 기간의 최솟값·최댓값이 모든 지표의 연속 관측을 뜻하지 않음"],
+    "fields":{
+      "지점코드":{"unit":null,"definition":"기상 관측소 식별자","status":"생성 코드 확인"},
+      "지점명":{"unit":null,"definition":"제주·고산·성산·서귀포","status":"생성 코드 확인"},
+      "일자":{"unit":"일","definition":"관측 일자","status":"생성 코드 확인"},
+      "평균기온_c":{"unit":"°C","definition":"원자료 일 평균기온","status":"원본 열 매핑 확인"},
+      "최저기온_c":{"unit":"°C","definition":"원자료 일 최저기온","status":"원본 열 매핑 확인"},
+      "최고기온_c":{"unit":"°C","definition":"원자료 일 최고기온","status":"원본 열 매핑 확인"},
+      "강수량_mm":{"unit":"mm","definition":"일강수량. 정제 코드에서 빈칸은 0 처리","status":"생성 코드 확인"},
+      "상대습도_퍼센트":{"unit":"%","definition":"일 평균 상대습도","status":"원본 열 매핑 확인"},
+      "일조시간_hr":{"unit":"시간","definition":"일 합계 일조시간","status":"원본 열 매핑 확인"},
+      "일사량_mj_m2":{"unit":"MJ/m²","definition":"일 합계 일사량","status":"원본 열 매핑 확인"}
+    }
+  },
+  "weather_monthly": {
+    "path":"data/processed/weather_monthly.csv", "title":"4개 지점 월별 기상 요약", "time_column":"연월", "time_kind":"month", "documented_period":"2004~2026-11 (문서 기준)",
+    "grain":"지점코드 × 연월", "keys":["지점코드","연월"], "chat_support":"자료 안내만 지원. 기상 수치·상관 분석은 아직 검증 범위 밖",
+    "origin":"weather_daily.csv에 해당하는 일자료를 clean_weather.to_monthly에서 월 단위 요약",
+    "references":["src/jeju_citrus/data/clean_weather.py: to_monthly"],
+    "quality":["연월은 해당 월의 첫날 표기이며 그 달 전체 관측 완료를 뜻하지 않음", "관측일수는 일자료 행 수이며 모든 기상 지표의 유효 관측일수가 아님", "열대야·호우 일수는 정제 코드의 근사 지표", "제주 전체 평균으로 간주하지 않음"],
+    "fields":{
+      "지점코드":{"unit":null,"definition":"관측소 식별자","status":"생성 코드 확인"},
+      "지점명":{"unit":null,"definition":"관측소 이름","status":"생성 코드 확인"},
+      "연월":{"unit":"월","definition":"관측 월의 첫날을 저장한 월 식별자","status":"생성 코드 확인"},
+      "관측일수":{"unit":"일","definition":"월별 일자료 행 개수. 지표별 유효 관측일수와 다름","status":"생성 코드 확인"},
+      "평균기온_c":{"unit":"°C","definition":"일 평균기온의 월 평균 (결측 제외)","status":"생성 코드 확인"},
+      "평균최고기온_c":{"unit":"°C","definition":"일 최고기온의 월 평균 (결측 제외)","status":"생성 코드 확인"},
+      "평균최저기온_c":{"unit":"°C","definition":"일 최저기온의 월 평균 (결측 제외)","status":"생성 코드 확인"},
+      "극값최고기온_c":{"unit":"°C","definition":"월 내 일 최고기온의 최댓값","status":"생성 코드 확인"},
+      "극값최저기온_c":{"unit":"°C","definition":"월 내 일 최저기온의 최솟값","status":"생성 코드 확인"},
+      "강수량_mm":{"unit":"mm","definition":"월 내 일강수량 합계","status":"생성 코드 확인"},
+      "일조시간_hr":{"unit":"시간","definition":"월 내 일조시간 합계. 일자료 결측에 주의","status":"생성 코드 확인"},
+      "일사량_mj_m2":{"unit":"MJ/m²","definition":"일사량 월 합계. 유효 일자료가 없으면 결측","status":"생성 코드 확인"},
+      "평균상대습도_퍼센트":{"unit":"%","definition":"일 평균 상대습도의 월 평균","status":"생성 코드 확인"},
+      "폭염일수":{"unit":"일","definition":"일 최고기온 33°C 이상인 날 수","status":"생성 코드 확인"},
+      "열대야일수":{"unit":"일","definition":"일 최저기온 25°C 이상인 날 수 (근사)","status":"생성 코드 확인"},
+      "영하일수":{"unit":"일","definition":"일 최저기온 0°C 미만인 날 수","status":"생성 코드 확인"},
+      "호우일수":{"unit":"일","definition":"일강수량 80mm 이상인 날 수 (근사)","status":"생성 코드 확인"},
+      "강수일수":{"unit":"일","definition":"일강수량 0mm 초과인 날 수","status":"생성 코드 확인"}
+    }
+  }
+}

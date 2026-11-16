@@ -117,6 +117,6 @@ class ReferenceTests(unittest.TestCase):
         data = copy.deepcopy(self.data)
         data["change"]["생산량_톤"] = {"difference": 99999, "percent": 99999}
         answer = render(data, REQUEST, QUESTION)
-        self.assertIn("+570.00", answer)
+        self.assertIn("+570", answer)
         self.assertIn("+3.16%", answer)
         self.assertNotIn("99,999", answer)

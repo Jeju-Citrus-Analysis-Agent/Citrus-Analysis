@@ -281,7 +281,10 @@ def quality_result(question):
 
 def document_result(question):
     terms = re.sub(r'문서에서|문서|찾아\s*줘|검색해\s*줘|알려\s*줘|에\s*대해', ' ', question)
-    terms = [t for t in re.findall(r'[가-힣A-Za-z0-9_]{2,}', terms) if t not in {'내용', '자료'}]
+    # '시기를' must match '시기': drop a trailing particle when a word remains.
+    terms = [re.sub(r'(?<=[가-힣]{2})(?:에서|으로|을|를|이|가|은|는|에|의|로|와|과)$', '', t)
+             for t in re.findall(r'[가-힣A-Za-z0-9_]{2,}', terms)]
+    terms = [t for t in dict.fromkeys(terms) if t not in {'내용', '자료'}]
     if not terms:
         raise ToolUnavailable('찾을 내용을 알려주세요. 예: 문서에서 2017년 면적을 찾아줘')
     paths = [ROOT / 'README.md'] + sorted((ROOT / 'docs').rglob('*.md'))
@@ -294,9 +297,18 @@ def document_result(question):
         raw = path.read_bytes()
         text = raw.decode('utf-8-sig', errors='replace')
         relative = path.relative_to(ROOT).as_posix()
+        in_code = False
         for line_no, line in enumerate(text.splitlines(), 1):
-            score = sum(t.lower() in line.lower() for t in terms)
+            if line.lstrip().startswith('```'):
+                in_code = not in_code
+            if in_code or line.lstrip().startswith('```'):
+                continue  # Folder trees and code are not readable answers.
             snippet = plain_line(line)
+            score = relevance(snippet, terms)
+            if score and re.match(r'\s*(?:#|[-*]\s*\[[ xX]\])', line):
+                score -= 50  # Headings and to-do items name a topic; body lines answer it.
+            if score and re.fullmatch(r'[\d.]+\s.*', snippet) and len(snippet) < 40:
+                score -= 50  # Numbered section titles such as '2.2 2017년 재배면적 단절'.
             if score and snippet:
                 hits.append((score, relative, line_no, snippet[:350]))
                 sources[relative] = {'path': relative, 'sha256': hashlib.sha256(raw).hexdigest()}
@@ -312,6 +324,16 @@ def document_result(question):
                           f'관련 문장은 모두 **{len(chosen)}개**입니다. 문서의 내용이며 최신 정보인지 별도 확인이 필요합니다.')
 
 
+def relevance(line, terms):
+    """More matched terms first; then terms that sit together; then shorter, more focused lines."""
+    lower = line.lower()
+    found = [lower.find(t.lower()) for t in terms if t.lower() in lower]
+    if not found:
+        return 0
+    close = len(found) > 1 and max(found) - min(found) <= 20
+    return len(found) * 100 + (30 if close else 0) - min(len(line), 300) / 30
+
+
 def plain_line(line):
     """Markdown table/heading markers read as noise once a line is quoted alone."""
     line = line.strip()
@@ -319,7 +341,8 @@ def plain_line(line):
         return ''
     if line.startswith('|'):
         line = ' · '.join(cell.strip() for cell in line.strip('|').split('|') if cell.strip())
-    return re.sub(r'^(?:#{1,6}|>|[-*+])\s+', '', line).replace('`', '').strip()
+    line = re.sub(r'^(?:#{1,6}|>|[-*+])\s+', '', line)
+    return re.sub(r'^\[[ xX]\]\s*', '', line).replace('`', '').strip()
 
 
 OFFICIAL_HOSTS = ('kosis.kr', 'jeju.go.kr', 'kma.go.kr', 'data.go.kr', 'mafra.go.kr', 'kamis.or.kr', 'at.or.kr')
@@ -378,19 +401,18 @@ def relationship_result(question, previous=None):
     if frame['생산량_톤'].nunique() < 2 or frame[weather_col].nunique() < 2:
         raise ToolUnavailable('값의 변화가 없어 상관계수를 계산할 수 없습니다.')
     r = frame['생산량_톤'].corr(frame[weather_col])
-    direction = '함께 커지는 방향' if r > 0 else '반대 방향'
-    text = (f'**{variety} 생산량과 {weather_col} 비교**\n\n{table(frame)}\n\n'
-            f'- 비교한 연도: {len(frame)}개\n- 상관계수: {r:.3f} (-1~1 범위)\n'
-            f'- 이 자료에서는 {direction}의 관계가 관찰됩니다.\n\n'
-            '연도가 적고 다른 조건을 통제하지 않았습니다. 날씨가 생산량 변화의 원인이라는 뜻은 아닙니다. '
+    from .comparisons import merged_descriptions, correlation_reading
+    reading, test = correlation_reading(r, len(frame))
+    weather = '강수량' if weather_col == '연강수량_mm' else '기온'
+    text = (f'**{variety} 생산량과 {weather} 비교**\n\n{table(frame)}\n\n'
+            f'- 비교한 연도: {len(frame)}개\n- 상관계수: {r:.3f} (-1~1 범위, 0에 가까울수록 관계가 없음)\n'
+            f'- 판단: {reading}. {test}\n\n'
+            '연도가 적고 다른 조건을 통제하지 않았습니다. 상관이 있더라도 날씨가 생산량 변화의 원인이라는 뜻은 아닙니다. '
             '제주 관측소의 달력 연도 자료이며 제주 전체 평균이나 재배 시기별 분석이 아닙니다.')
-    from .comparisons import merged_descriptions
     text += '\n\n**비교 분석**\n\n' + merged_descriptions(frame, variety)
-    conclusion = ('함께 움직이는 선형 관계가 매우 약하게 나타납니다' if abs(r) < .1 else
-                  '함께 늘어나는 방향의 관계가 관찰됩니다' if r > 0 else '반대 방향으로 움직이는 관계가 관찰됩니다')
     return result(text, sources, validation='연도 1:1 결합·관측일 완전성·Pearson 상관 계산 (인과 분석 아님)',
-                  summary=f'이 자료에서는 {variety} 생산량과 {"강수량" if weather_col == "연강수량_mm" else "기온"}이 **{conclusion}**. 상관계수는 **{r:.3f}**입니다. '
-                          f'제주 관측소와 {len(frame)}개 연도를 비교했으며, **날씨가 원인이라는 뜻은 아닙니다.**')
+                  summary=f'{variety} 생산량과 {weather} 사이에는 **{reading}**. 상관계수는 **{r:.3f}**이고, {test} '
+                          f'제주 관측소 자료와 비교했으며, **날씨가 원인이라는 뜻은 아닙니다.**')
 
 
 def sensitivity_result(question, previous=None):
@@ -477,7 +499,7 @@ def conversation_result(question):
     if re.search('생산량.*출하량|출하량.*생산량', question) and re.search('차이|달라|뜻', question):
         return result('**생산량**은 수확해 생산한 양이고, **출하량**은 판매·유통을 위해 내보낸 양입니다.\n\n예를 들어 100kg을 생산하고 80kg을 내보냈다면 생산량은 100kg, 출하량은 80kg입니다. 집계 기간과 대상에 따라 두 값은 다를 수 있습니다.')
     if re.search('뭘.*할|뭐.*할|사용법|어떻게.*사용|할 수 있는', question):
-        return result('자료 조회, 그래프, 빠진 값 확인, 문서·인터넷 검색, 날씨 비교, 이익 계산을 할 수 있어요. 왼쪽 **예시 질문 → 무엇을 하고 싶으세요?**에서 하나를 골라 보세요.\n\n자유로운 잡담은 지원하지 않으며, 인터넷 검색 외에는 API 키와 인터넷 없이 사용합니다.')
+        return result('자료 조회, 그래프, 빠진 값 확인, 문서 검색, 날씨 비교, 품종별 단가·경영비 조회, 이익 계산을 할 수 있어요. 왼쪽 **예시 질문** 메뉴의 **무엇을 하고 싶으세요** 목록에서 하나를 골라 보세요.\n\n자유로운 잡담은 지원하지 않으며, API 키와 인터넷 연결 없이 사용합니다.')
     return None
 
 

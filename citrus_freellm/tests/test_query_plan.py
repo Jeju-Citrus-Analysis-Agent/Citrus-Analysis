@@ -106,7 +106,7 @@ class QueryPlanTests(unittest.TestCase):
         self.assertIn("생산량 (톤)", third)
         self.assertNotIn("생산면적 (ha)", third)
         agent.reset()
-        self.assertIn("명시", agent.ask("면적은?"))
+        self.assertIn("함께 알려주세요", agent.ask("면적은?"))
         self.assertEqual(client.complete.call_count, 3)
 
     def test_missing_year_selection_is_explicit(self):

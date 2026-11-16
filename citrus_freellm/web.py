@@ -65,6 +65,17 @@ def plain_tildes(text):
     return re.sub(r'(?<!\\)~', r'\\~', text)
 
 
+def lookup_periods(availability):
+    """Both production sources, read from the files rather than written into the guide."""
+    from citrus_freellm.usability import jasdc_years
+    fruit = next((r for r in availability if r['key'] == 'production' and r.get('available')), None)
+    parts = [f"과수 통계 **{fruit['period']}**"] if fruit else []
+    years = jasdc_years()
+    if years:
+        parts.append(f"감귤 7개 품종은 수급센터 통계로 **{years[0]}~{years[-1]}년**")
+    return ' · '.join(parts) or '자료 파일을 찾지 못했습니다'
+
+
 def begin_edit(index):
     message = st.session_state.messages[index]
     st.session_state.editing_question = {
@@ -92,7 +103,7 @@ def main():
     [class*="st-key-edit_action_"] button:hover {background: #f1f5f9;}
     [data-testid="stMain"] {overflow-anchor: none; scroll-behavior: auto;}
     </style>''', unsafe_allow_html=True)
-    st.sidebar.caption("API 키 없이 사용 · 인터넷 검색만 연결 필요")
+    st.sidebar.caption("API 키 없이 사용 · 내 컴퓨터의 자료만으로 답합니다")
     # Agent를 전역 캐시에 두면 다른 브라우저 세션과 대화가 섞일 수 있다.
     if "agent" not in st.session_state or getattr(st.session_state.agent, 'client', None) is not None:
         st.session_state.agent = Agent(local_only=True)
@@ -139,10 +150,10 @@ def main():
 
 아래 **예시 질문**을 눌러 시작해도 됩니다.
 
-**예시 질문 → 무엇을 하고 싶으세요?**에서 원하는 일을 고른 뒤 질문을 눌러 보세요.
-API 키는 필요 없으며, 인터넷 검색만 인터넷 연결이 필요합니다.
+**예시 질문** 메뉴의 **무엇을 하고 싶으세요** 목록에서 원하는 일을 고른 뒤 질문을 눌러 보세요.
+API 키와 인터넷 연결 없이 동작합니다.
 
-표가 나온 뒤 **‘그래프로 그려줘’**라고 입력하면 같은 항목·기간·수치를 그래프로 볼 수 있습니다.
+표가 나온 뒤 ‘**그래프로 그려줘**’라고 입력하면 같은 항목·기간·수치를 그래프로 볼 수 있습니다.
 
 **결과 저장**
 
@@ -154,9 +165,9 @@ API 키는 필요 없으며, 인터넷 검색만 인터넷 연결이 필요합�
 
 **참고하세요**
 
-- 생산량·면적 조회는 **2015~2020년** 자료가 기본입니다.
+- 생산량·면적 조회 기간: {periods}
 - 인사와 간단한 용어 설명을 지원합니다. 자유로운 잡담과 미래 예측은 지원하지 않습니다.
-""")
+""".format(periods=lookup_periods(availability)))
         with st.expander("예시 질문", expanded=True):
             category = st.selectbox('무엇을 하고 싶으세요?', tuple(EXAMPLE_CATEGORIES), key='example_category')
             for index, question in enumerate(EXAMPLE_CATEGORIES[category]):

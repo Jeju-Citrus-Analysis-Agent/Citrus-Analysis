@@ -35,7 +35,7 @@ def compact(question):
 def wants_cost_lookup(question):
     """Numeric lookups only. Assumption scenarios and 'why' questions go elsewhere."""
     q = compact(question)
-    if not re.search(COST_TERMS, q):
+    if not re.search(COST_TERMS, q) and not plain_price(question):
         return False
     if re.search(r'\d[\d,]*(?:\.\d+)?(?:억|만|천)?(?:원|kg|킬로|톤|t\b)', q, re.I) or re.search(r'판매량|판매가능', q):
         return False
@@ -48,6 +48,13 @@ def wants_cost_lookup(question):
     if re.search(r'실질|물가', q) and not re.search(r'단가|가격|매출|조수입|소득|경영비|순수익', q):
         return False
     return bool(varieties_in(question) or years_in(question) or re.search(r'품종별|품종마다|전체품종|모든품종|순위', q))
+
+
+def plain_price(question):
+    """'천혜향 단가 알려줘': a yearly per-variety price, not the daily/monthly market tables."""
+    q = compact(question)
+    return bool(re.search(r'단가|가격|시세', q) and varieties_in(question)
+                and not re.search(r'월별|일별|출하|도매|시장|규격|상자|%|오르|내려|하락|상승', q))
 
 
 def varieties_in(question):
@@ -70,7 +77,8 @@ def plan_for(question):
     q = compact(question)
     if re.search(r'손익분기', q):
         kind = 'breakeven'
-    elif re.search(r'(?:실질|물가).*(?:단가|가격)|(?:단가|가격).*(?:실질|물가)', q):
+    elif re.search(r'(?:실질|물가).*(?:단가|가격)|(?:단가|가격).*(?:실질|물가)', q) or (
+            plain_price(question) and not re.search(COST_TERMS, q)):
         kind = 'real_price'
     else:
         kind = 'income'
@@ -309,8 +317,13 @@ def real_price_lookup(plan, read_source, table, unavailable):
     first, last = out.iloc[0], out.iloc[-1]
     nominal_change = (last['명목 단가(원/kg)'] / first['명목 단가(원/kg)'] - 1) * 100
     real_change = (real.iloc[-1] / real.iloc[0] - 1) * 100
-    summary = (f"{variety} 단가는 {first['연도']}→{last['연도']}년 명목 **{nominal_change:+.1f}%**, "
-               f"CPI로 물가를 뺀 실질 **{real_change:+.1f}%**입니다.")
+    if len(out) == 1:
+        summary = (f"{first['연도']}년 {variety} 단가는 **{first['명목 단가(원/kg)']:,}원/kg**입니다. "
+                   f"2020년 물가로 환산하면 {first['실질 단가(원/kg, 2020년 물가)']:,}원/kg입니다.")
+    else:
+        summary = (f"{variety} 단가는 {first['연도']}년 **{first['명목 단가(원/kg)']:,}원/kg**에서 "
+                   f"{last['연도']}년 **{last['명목 단가(원/kg)']:,}원/kg**으로 **{nominal_change:+.1f}%** 변했습니다. "
+                   f"물가 상승분(CPI)을 빼면 **{real_change:+.1f}%**입니다.")
     text = ('**CPI 물가 보정 단가**\n\n' + table(out, limit=40)
             + '\n\n계산식: 실질 단가 = 명목 단가 ÷ CPI(연도) × 100 (2020년 물가 기준). 단가 = 조수입 ÷ 처리량입니다.'
             + (f"\n\n단가 검증이 ‘확인불가’인 연도는 제외했습니다: {', '.join(map(str, excluded))}." if excluded else '')

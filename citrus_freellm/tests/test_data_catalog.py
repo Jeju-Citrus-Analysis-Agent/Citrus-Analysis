@@ -23,11 +23,19 @@ class DataCatalogTests(unittest.TestCase):
         self.assertEqual(self.records["weather_daily"]["observed_period"]["end"], "2026-11-07")
 
     def test_documented_period_not_claimed_as_local_coverage(self):
-        record = self.records["citrus_production_yearly"]
+        # Use an empty root: the repository may or may not hold this file.
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as folder:
+            record = next(r for r in catalog(folder)["datasets"] if r["name"] == "citrus_production_yearly")
         self.assertFalse(record["available"])
         self.assertEqual(record["documented_period"], "2004~2025")
         self.assertIsNone(record["observed_period"])
         self.assertEqual(record["status"], "파일 없음")
+
+    def test_processed_columns_take_units_from_their_names(self):
+        export = {c["name"]: c for c in self.records["citrus_export_yearly"]["columns"]}
+        self.assertEqual(export["수출액_천달러"]["unit"], "천 달러")
+        self.assertEqual(export["수출액_천달러"]["status"], "열 이름 확인")
+        self.assertIn("조회 지원", self.records["citrus_export_yearly"]["chat_support"])
 
     def test_definitions_and_units_cover_present_columns(self):
         for record in self.data["datasets"]:
@@ -88,7 +96,7 @@ class DataCatalogTests(unittest.TestCase):
         for question, expected in (("생산량 데이터는 몇 년까지 있어?", "2015~2020"),
                                    ("기상 데이터 기간 알려줘", "7/30일"),
                                    ("생산면적과 수확면적은 같은 거야?", "정의가 같다는 근거는 확인되지"),
-                                   ("가격 데이터 있어?", "파일 없음"),
+                                   ("가격 데이터 있어?", "일별 출하량·가격"),
                                    ("어떤 데이터가 있어?", "현재 로컬 파일 기준")):
             answer = agent.ask(question)
             self.assertIn(expected, answer)
@@ -112,7 +120,10 @@ class DataCatalogTests(unittest.TestCase):
 
     def test_price_question_excludes_processing_and_export(self):
         answer = metadata_answer("가격 데이터 있어?")
-        self.assertIn("가격 관련 자료는 현재 로컬에 없습니다", answer)
+        self.assertIn("일별 출하량·가격", answer)
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as folder, \
+             patch("citrus_freellm.tools.ROOT", Path(folder)):
+            self.assertIn("가격 관련 자료는 현재 로컬에 없습니다", metadata_answer("가격 데이터 있어?"))
         self.assertNotIn("citrus_processing_yearly.csv", answer)
         self.assertNotIn("citrus_processing_by_company.csv", answer)
         self.assertNotIn("citrus_export_yearly.csv", answer)

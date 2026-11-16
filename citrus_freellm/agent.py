@@ -3,7 +3,7 @@ import json
 import re
 from datetime import datetime, timezone, timedelta
 
-from .guardrails import render, request_for, lookup_request, CLARIFY
+from .guardrails import render, request_for, lookup_request, CLARIFY, OFF_TOPIC, off_topic
 from .tools import TOOLS, execute
 from .intent import interpret, should_interpret
 from .data_catalog import metadata_answer
@@ -189,8 +189,8 @@ class Agent:
             return self.remember(question, '금액 입력은 외부 모델로 보내지 않습니다. 가정 계산이라면 판매가능수량·단가·비용을 알려주세요. 통계 조회라면 품종·연도·지표만 지정해 주세요.')
         if self.local_only:
             if blocked:
-                if blocked == CLARIFY:
-                    blocked += '\n로컬 모드에서는 품종·연도·지표를 명확히 입력해 주세요. 예: 2020년 천혜향 생산량'
+                if blocked == CLARIFY and off_topic(question):
+                    blocked = OFF_TOPIC
                 return self.remember(question, blocked)
             result = execute({'name': 'production', 'arguments': json.dumps(lookup_request(request))})
             return self.verified_answer(question, request, result)

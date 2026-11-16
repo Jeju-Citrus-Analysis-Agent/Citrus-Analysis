@@ -3,7 +3,29 @@ import math
 
 import pandas as pd
 
-from .presentation import result_first, split_answer, SUMMARY_HEADER, DETAILS_HEADER
+from .presentation import number, result_first, split_answer, SUMMARY_HEADER, DETAILS_HEADER
+
+
+# Two-sided 5% critical t values by degrees of freedom (n - 2); scipy is not a dependency.
+T_CRITICAL = {1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262,
+              10: 2.228, 12: 2.179, 15: 2.131, 20: 2.086, 25: 2.060, 30: 2.042}
+
+
+def correlation_reading(r, n):
+    """Plain-language strength of a Pearson r, and whether n years can tell it from chance."""
+    df = n - 2
+    critical = T_CRITICAL[max(k for k in T_CRITICAL if k <= df)] if df < 30 else 1.96
+    significant = abs(r) < 1 and abs(r) * math.sqrt(df / (1 - r * r)) >= critical
+    direction = '함께 늘어나는' if r > 0 else '한쪽이 늘 때 다른 쪽은 줄어드는'
+    if abs(r) < .3:
+        strength = '뚜렷한 관계가 보이지 않습니다'
+    elif abs(r) < .7:
+        strength = f'{direction} 경향이 약하게 보입니다'
+    else:
+        strength = f'{direction} 경향이 강하게 보입니다'
+    test = (f'{n}개 연도로 확인했을 때 우연히 나온 값으로 보기 어렵습니다(5% 유의수준에서 유의).' if significant else
+            f'{n}개 연도뿐이라 우연히 나온 값과 구별되지 않습니다(5% 유의수준에서 유의하지 않음).')
+    return strength, test
 
 
 def append_comparison(answer, summary, details):
@@ -19,7 +41,7 @@ def append_comparison(answer, summary, details):
 
 def difference(before, after, unit, percentage=True):
     delta = after - before
-    text = f'{delta:+,.2f}{"퍼센트포인트" if unit == "%" else unit}'
+    text = f'{number(delta, True)}{"퍼센트포인트" if unit == "%" else unit}'
     if percentage:
         text += f' ({delta / before * 100:+.2f}%)' if before else ' (기준값이 0이므로 증감률 계산 안 함)'
     return text
@@ -41,8 +63,8 @@ def extrema(frame, dimension, metric, label, unit):
     suffix = f' 빠진 값 {missing}개를 제외한 범위입니다.' if missing else ''
     if (part[metric] == high[metric]).sum() > 1 or (part[metric] == low[metric]).sum() > 1:
         suffix += ' 동률이 있으면 대표 항목 하나를 표시했습니다.'
-    return (f'{label}: 확인한 범위에서 가장 높은 값은 {item(high[dimension])} **{high[metric]:,.2f}{unit}**, '
-            f'가장 낮은 값은 {item(low[dimension])} **{low[metric]:,.2f}{unit}**입니다.' + suffix)
+    return (f'{label}: 확인한 범위에서 가장 높은 값은 {item(high[dimension])} **{number(high[metric])}{unit}**, '
+            f'가장 낮은 값은 {item(low[dimension])} **{number(low[metric])}{unit}**입니다.' + suffix)
 
 
 def merged_descriptions(frame, variety):
@@ -52,7 +74,7 @@ def merged_descriptions(frame, variety):
         if len(frame) >= 3 and frame[column].nunique() > 1 and frame['생산량_톤'].nunique() > 1:
             r = frame['생산량_톤'].corr(frame[column])
             if math.isfinite(r):
-                notes.append(f'{len(frame)}개 연도에서 생산량과 {label}의 상관계수: **{r:.3f}**.')
+                notes.append(f'{len(frame)}개 연도에서 생산량과 {label}의 상관계수: **{r:.3f}** ({correlation_reading(r, len(frame))[1]})')
     return '\n\n'.join(n for n in notes if n) + '\n\n연도별 관측값의 비교이며 날씨가 원인이라는 증거가 아닙니다.'
 
 
@@ -239,6 +261,7 @@ def lookup_comparison(data, request):
         if a is None or b is None:
             notes.append(f'{label}에 빠진 값이 있어 추가 비교를 하지 않았습니다.')
             continue
-        notes.append(f"{request['variety']} {label}을 추가 비교하면 **{first['연도']}년 {a:,.2f}{unit} → {last['연도']}년 {b:,.2f}{unit}**, 변화는 **{difference(a, b, unit)}**입니다.")
+        from .guardrails import display_name
+        notes.append(f"{display_name(request['variety'])} {label}을 추가 비교하면 **{first['연도']}년 {number(a)}{unit} → {last['연도']}년 {number(b)}{unit}**, 변화는 **{difference(a, b, unit)}**입니다.")
     body = '\n\n'.join(notes)
     return ' '.join(notes[:2]), f'요청 연도 외에 자료가 있는 가까운 연도를 기준으로 추가 비교했습니다.\n\n{body}' if body else ''

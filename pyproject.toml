@@ -30,8 +30,8 @@ dev = [
 where = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["src"]
+testpaths = ["tests", "citrus_freellm/tests"]
+pythonpath = ["src", "."]
 
 [tool.ruff]
 line-length = 100

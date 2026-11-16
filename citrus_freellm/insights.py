@@ -93,6 +93,10 @@ def retrieve(question, previous_ids=None):
         selected.append("standard_vs_average")
     if re.search(r"경영비물가|비용물가|경영비지수|품종별.*(?:물가|비용구성)|비용구성|(?:난방|노무비|농약비|비료비).*(?:비중|올랐|상승)", text):
         selected.append("variety_cost_index")
+    if (not selected and re.search(r"경영비|소득|순수익|생산비", text) and re.search(r"분석|설명|알려|정리|요약|어때|결과", text)
+            and not re.search(r"\d", text)):
+        # A general "경영비 분석" request gets the main cost analysis, not an input form.
+        selected.append("cost_income")
     if not selected and previous_ids and re.search(r"그럼|그러면|왜|근거|한계|대안|무슨뜻|의미|더설명", text) and not re.search(r"(?<!\d)(?:19|20)\d{2}(?!\d)", text):
         selected = list(previous_ids)
     return list(dict.fromkeys(selected))

@@ -12,7 +12,7 @@ def main():
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="replace")
-    parser = argparse.ArgumentParser(description="API 키 없이 사용하는 제주 감귤 분석 도우미")
+    parser = argparse.ArgumentParser(description="감귤의 신 (神): 데이터로 읽는 제주 감귤 수급 비서 (API 키 없이 사용)")
     parser.add_argument("question", nargs="?")
     parser.add_argument("--offline", action="store_true", help="모델 연결 없이 원자료 조회·분석·가정 계산 실행")
     parser.add_argument("--diagnose", action="store_true", help="로컬 자료와 실행 환경 확인")

@@ -24,6 +24,30 @@ DOCUMENTED_ONLY = {
     "citrus_price_monthly_box": ("2024 시즌 (문서 기준)", "월별 상자규격 가격")
 }
 
+# Processed files built by this project: time column and the chat tool that reads them.
+PROCESSED_SPECS = {
+    "noji_yearly": ("연도", None), "noji_monthly_2025": ("산지연도", "monthly_price"),
+    "noji_market_2025": ("산지연도", None), "noji_size": ("산지연도", None), "varieties_summary": (None, None),
+    "citrus_processing_yearly": ("연도", "processing"), "citrus_processing_by_company": ("연도", None),
+    "citrus_export_yearly": ("연도", "exports"), "citrus_price_daily": ("일자", "price"),
+    "citrus_price_monthly_box": ("시즌", None),
+}
+TOOL_EXAMPLES = {"monthly_price": "2025년 월별 가격 보여줘", "processing": "2020년 가공 자료 보여줘",
+                 "exports": "2020년 수출 자료 보여줘", "price": "2024년 일별 가격 보여줘"}
+# Units are read from this project's own column-name suffixes, longest first.
+UNIT_SUFFIXES = (("_원_5kg", "원/5kg"), ("_원_kg", "원/kg"), ("_백만원", "백만원"), ("_천달러", "천 달러"),
+                 ("_퍼센트", "%"), ("_톤", "톤"), ("_원", "원"))
+
+
+def named_field(column):
+    """Meaning from the column name only; the status says so instead of claiming a definition."""
+    unit = next((u for suffix, u in UNIT_SUFFIXES if column.endswith(suffix)), None)
+    if unit is None and re.fullmatch(r"연도|산지연도", column):
+        unit = "년"
+    label = column.replace("_", " ")
+    return {"unit": unit, "definition": f"{label} (열 이름 기준, 원기관 정의 대조 전)", "status": "열 이름 확인"}
+
+
 # Explicit subjects, not "all documented files minus one".
 PRICE_DATASETS = {"noji_yearly", "noji_monthly_2025", "noji_market_2025", "noji_size",
                   "varieties_summary", "citrus_production_yearly", "citrus_price_daily", "citrus_price_monthly_box"}
@@ -50,8 +74,9 @@ def profile(root, name, spec):
         import io
         frame = pd.read_csv(io.BytesIO(raw), encoding="utf-8-sig")
         result.update(status="파일 확인", source_sha256=hashlib.sha256(raw).hexdigest(), row_count=len(frame))
-        result["columns"] = [{"name": column, **spec.get("fields", {}).get(column, {
-            "unit": None, "definition": "미등록 열. 의미와 단위 미확인", "status": "미확인"}),
+        unknown = {"unit": None, "definition": "미등록 열. 의미와 단위 미확인", "status": "미확인"}
+        result["columns"] = [{"name": column, **(spec.get("fields", {}).get(column) or (
+            named_field(column) if spec.get("named_columns") else unknown)),
             "null_count": int(frame[column].isna().sum())} for column in frame.columns]
         time_col, kind = spec.get("time_column"), spec.get("time_kind")
         if time_col in frame:
@@ -95,10 +120,15 @@ def catalog(root=None):
     root = Path(root)
     specs = definitions()
     for name, (period, title) in DOCUMENTED_ONLY.items():
+        time_column, tool = PROCESSED_SPECS.get(name, (None, None))
         specs.setdefault(name, {"path": f"data/processed/{name}.csv", "title": title,
-            "documented_period": period, "chat_support": "분석 미지원", "origin": "프로젝트 README 및 요구사항 명세",
+            "documented_period": period,
+            "chat_support": f"자료 조회 지원 (예: {TOOL_EXAMPLES[tool]})" if tool else "자료 안내만 지원",
+            "origin": "프로젝트 README 및 요구사항 명세",
             "references": ["README.md: 데이터 목록", "docs/requirements_spec.md §2.1"],
-            "quality": ["문서상 기간이며 현재 파일 보유 또는 실제 관측 기간을 의미하지 않음"], "fields": {}})
+            "quality": ["문서상 기간은 실제 파일 기간과 다를 수 있음. 실제 기간은 파일에서 읽은 값을 따름"],
+            "time_column": time_column, "time_kind": "date" if time_column == "일자" else "year",
+            "named_columns": True, "fields": {}})
     # Newly added local files are visible but their semantics are never guessed.
     for path in (root / "data/processed").glob("*.csv"):
         specs.setdefault(path.stem, {"path": path.relative_to(root).as_posix(), "title": path.stem,

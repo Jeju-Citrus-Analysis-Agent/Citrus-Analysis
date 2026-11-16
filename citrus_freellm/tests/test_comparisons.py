@@ -47,7 +47,7 @@ class ComparisonTests(unittest.TestCase):
             '평균기온_c': [-2., 5., 2., 7.], '강수량_mm': [0., 100., 20., 50.]})
         lead, body = weather_comparison(full.iloc[2:].copy(), full)
         self.assertIn('2019년 → 2020년', lead)
-        self.assertIn('+4.00℃', lead)
+        self.assertIn('+4℃', lead)
         self.assertIn('관측일이 부족한 1개 월', body)
         self.assertIn('공통 항목 1개', body)
         self.assertIn('기준값이 0', body)
@@ -61,7 +61,7 @@ class ComparisonTests(unittest.TestCase):
         lead, body = weather_comparison(frame, frame)
         self.assertIn('서귀포 → 제주', lead)
         self.assertIn('같은 월', body)
-        self.assertIn('-3.00℃', lead)
+        self.assertIn('-3℃', lead)
 
     def test_exports_do_not_sum_total_rows_or_zero_missing_countries(self):
         full = pd.DataFrame({'연도': [2019] * 3 + [2020] * 4,
@@ -80,7 +80,7 @@ class ComparisonTests(unittest.TestCase):
         before = pd.DataFrame({'항목': ['가공률'], '값': [30.]})
         after = pd.DataFrame({'항목': ['가공률'], '값': [40.]})
         lead, body = pair_rows(before, after, ['항목'], [('값', '가공률', '%', False)], '이전', '현재')
-        self.assertIn('+10.00퍼센트포인트', lead)
+        self.assertIn('+10퍼센트포인트', lead)
         self.assertNotIn('변화율', body)
         _, body = pair_rows(pd.concat([before, before], ignore_index=True), after, ['항목'],
                             [('값', '가공률', '%', False)], '이전', '현재')

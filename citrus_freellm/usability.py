@@ -64,6 +64,17 @@ def source_availability():
     return records
 
 
+@lru_cache(maxsize=1)
+def jasdc_years():
+    """Years in the 2004~ citrus series that answers lookups outside the fruit table."""
+    from .tools import JASDC_SOURCE
+    try:
+        frame, _ = lt.read_source(JASDC_SOURCE)
+        return sorted(int(y) for y in pd.to_numeric(frame['연도'], errors='coerce').dropna().unique())
+    except (OSError, ValueError, KeyError, lt.ToolUnavailable):
+        return []
+
+
 def followup_context(question, agent, availability):
     if not agent.results or agent.results[-1]['question'] != question:
         return None

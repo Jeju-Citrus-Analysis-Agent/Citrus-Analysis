@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .agent import Agent
-from .client import FreeLLMClient
+from .client import make_client
 from .guardrails import lookup_request, render, request_for
 from .tools import production
 
@@ -112,7 +112,7 @@ def main():
     if not 0 <= args.interval <= 30:
         parser.error("--interval은 0~30 범위입니다.")
     cases = json.loads((FOLDER / "evaluation_cases.json").read_text(encoding="utf-8"))
-    client = FreeLLMClient()
+    client = make_client()
     results = []
     for repeat in range(args.repeats):
         for case in cases:

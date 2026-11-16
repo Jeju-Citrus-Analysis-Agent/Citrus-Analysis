@@ -14,6 +14,7 @@ if parent not in sys.path:
 
 from citrus_freellm import landing
 from citrus_freellm.agent import Agent
+from citrus_freellm.client import LazyFreeLLMClient, claude_configured
 from citrus_freellm.reporting import save_report
 from citrus_freellm.example_questions import EXAMPLE_CATEGORIES
 from citrus_freellm.presentation import split_answer
@@ -103,10 +104,12 @@ def main():
     [class*="st-key-edit_action_"] button:hover {background: #f1f5f9;}
     [data-testid="stMain"] {overflow-anchor: none; scroll-behavior: auto;}
     </style>''', unsafe_allow_html=True)
-    st.sidebar.caption("API 키 없이 사용 · 내 컴퓨터의 자료만으로 답합니다")
+    use_model = claude_configured()
+    st.sidebar.caption("Claude가 애매한 질문의 뜻만 해석 · 숫자는 내 컴퓨터 자료로만 답합니다" if use_model
+                       else "API 키 없이 사용 · 내 컴퓨터의 자료만으로 답합니다")
     # Agent를 전역 캐시에 두면 다른 브라우저 세션과 대화가 섞일 수 있다.
-    if "agent" not in st.session_state or getattr(st.session_state.agent, 'client', None) is not None:
-        st.session_state.agent = Agent(local_only=True)
+    if "agent" not in st.session_state or (getattr(st.session_state.agent, 'client', None) is not None) != use_model:
+        st.session_state.agent = Agent(LazyFreeLLMClient() if use_model else None, local_only=True)
         st.session_state.messages = []
         st.session_state.exports = []
     agent = st.session_state.agent
@@ -151,7 +154,7 @@ def main():
 아래 **예시 질문**을 눌러 시작해도 됩니다.
 
 **예시 질문** 메뉴의 **무엇을 하고 싶으세요** 목록에서 원하는 일을 고른 뒤 질문을 눌러 보세요.
-API 키와 인터넷 연결 없이 동작합니다.
+API 키와 인터넷 없이도 동작합니다. Claude 키를 넣으면 규칙으로 못 알아들은 질문의 뜻 해석만 돕고, 숫자는 늘 내 컴퓨터 자료에서 나옵니다.
 
 표가 나온 뒤 ‘**그래프로 그려줘**’라고 입력하면 같은 항목·기간·수치를 그래프로 볼 수 있습니다.
 

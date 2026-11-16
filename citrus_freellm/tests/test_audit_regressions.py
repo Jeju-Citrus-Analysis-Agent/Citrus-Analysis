@@ -41,7 +41,7 @@ class AuditRegressions(unittest.TestCase):
         self.assertIn("보류", answer)
 
     def test_local_analysis_does_not_require_api_configuration(self):
-        with patch("citrus_freellm.client.FreeLLMClient", side_effect=ValueError("키 없음")) as factory:
+        with patch("citrus_freellm.client.make_client", side_effect=ValueError("키 없음")) as factory:
             agent = Agent(LazyFreeLLMClient())
             self.assertIn("2015~2020", agent.ask("생산량 데이터는 몇 년까지 있어?"))
             self.assertIn("18,329", agent.ask("2019~2020년 천혜향 생산량 평균"))

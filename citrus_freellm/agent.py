@@ -3,7 +3,7 @@ import json
 import re
 from datetime import datetime, timezone, timedelta
 
-from .guardrails import render, request_for, lookup_request, CLARIFY, OFF_TOPIC, off_topic
+from .guardrails import render, request_for, lookup_request, CLARIFY, OFF_TOPIC, UNSUPPORTED, off_topic
 from .tools import TOOLS, execute
 from .intent import interpret, should_interpret
 from .data_catalog import metadata_answer
@@ -113,6 +113,34 @@ class Agent:
         except ImportError:
             return self.remember(question, '참조 저장소 또는 Python 의존성을 찾지 못했습니다. README의 설치 방법과 CITRUS_REPO_PATH를 확인하세요. 분석 설명과 가정 계산은 로컬에서 사용할 수 있습니다.')
 
+    def model_assist(self, question, blocked):
+        """Let the model re-read wording the local rules could not parse.
+
+        The model only names a variety/year/topic. Every number still comes from the
+        verified local lookup, and any model failure falls back to the local answer.
+        """
+        if blocked == UNSUPPORTED or off_topic(question):
+            return None
+        try:
+            request, still_blocked = interpret(question, self.previous_request, self.client)
+            if not still_blocked:
+                result = execute({'name': 'production', 'arguments': json.dumps(lookup_request(request))})
+                return self.verified_answer(question, request, result)
+            if blocked != CLARIFY or re.search(r'예측|내년|전망', question):
+                return None
+            ids = interpret_topic(question, self.client)
+            if not ids:
+                return None
+            insight = explain(question, selected_ids=ids)
+        except (RuntimeError, ValueError, KeyError, TypeError, OSError):
+            return None
+        if not insight:
+            return None
+        self.insight_ids = ids
+        self.scenario = None
+        self.previous_request = None
+        return self.record(insight['kind'], question, insight['conditions'], insight['text'], insight['sources'])
+
     def _ask(self, question):
         # 라우팅 순서: 명령/자료 안내 → 로컬 가정 계산 → 분석 근거 →
         # 품종 분석 → 조회 의도 해석 → 모델 도구 선택 → 원자료 검증.
@@ -188,6 +216,10 @@ class Agent:
         if re.search(r'\d[\d,.]*\s*(?:억|만|천)?\s*원', question):
             return self.remember(question, '금액 입력은 외부 모델로 보내지 않습니다. 가정 계산이라면 판매가능수량·단가·비용을 알려주세요. 통계 조회라면 품종·연도·지표만 지정해 주세요.')
         if self.local_only:
+            if blocked and self.client is not None:
+                assisted = self.model_assist(question, blocked)
+                if assisted is not None:
+                    return assisted
             if blocked:
                 if blocked == CLARIFY and off_topic(question):
                     blocked = OFF_TOPIC

@@ -4,7 +4,6 @@ import json
 import sys
 
 from .agent import Agent
-from .client import FreeLLMClient, LazyFreeLLMClient
 from .tools import catalog
 
 
@@ -13,9 +12,10 @@ def main():
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="replace")
-    parser = argparse.ArgumentParser(description="FreeLLMAPI 제주 감귤 분석 에이전트")
+    parser = argparse.ArgumentParser(description="API 키 없이 사용하는 제주 감귤 분석 도우미")
     parser.add_argument("question", nargs="?")
-    parser.add_argument("--diagnose", action="store_true", help="실제 서버 연결 확인")
+    parser.add_argument("--offline", action="store_true", help="모델 연결 없이 원자료 조회·분석·가정 계산 실행")
+    parser.add_argument("--diagnose", action="store_true", help="로컬 자료와 실행 환경 확인")
     parser.add_argument("--catalog", action="store_true", help="API 없이 로컬 데이터 확인")
     parser.add_argument("--data-guide", action="store_true", help="API 없이 자료 정의·기간 안내")
     args = parser.parse_args()
@@ -28,11 +28,11 @@ def main():
             print(json.dumps(catalog(), ensure_ascii=False, indent=2))
             return
         if args.diagnose:
-            client = FreeLLMClient()
-            print(client.complete([{"role": "user", "content": "Reply only OK."}])["content"])
-            print("실제 처리 모델:", client.routed_via or "헤더 정보 없음")
+            from .local_tools import TOOL_GUIDE
+            print(f"API 키 없이 실행합니다. 사용 가능한 추가 도구: {len(TOOL_GUIDE)}개")
+            print("생산 원자료:", "확인됨" if any(r['name'] == 'fruit_production' and r['available'] for r in catalog()['datasets']) else "없음")
             return
-        agent = Agent(LazyFreeLLMClient())
+        agent = Agent(local_only=True)
         if args.question:
             print(agent.ask(args.question))
             return

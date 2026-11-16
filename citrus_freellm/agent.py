@@ -11,6 +11,8 @@ from .analysis import plan_analysis, calculate, render_analysis, AnalysisUnavail
 from .scenarios import parse_scenario, render_scenario
 from .insights import explain, interpret_topic
 from .reporting import save_report
+from .sources import readme_source, public_text
+from .followup_charts import is_chart_followup, chart_previous_answer
 
 SCOPED_TOOLS = [t for t in TOOLS if t['function']['name'] in {'catalog', 'production'}]
 PROMPT = '''제주 감귤 생산량·면적 조회 도우미다. 한국어로 답한다.
@@ -21,9 +23,12 @@ catalog는 목록 확인용이다. 원인·예측은 생성하지 않는다.
 
 class Agent:
     """세션별 상태와 성공 결과를 보관하며 CLI와 웹에 같은 검증 흐름을 제공한다."""
-    def __init__(self, client, max_steps=8):
+    def __init__(self, client=None, max_steps=8, local_only=None):
         self.client = client
         self.max_steps = max_steps
+        self.local_only = client is None if local_only is None else local_only
+        self.last_artifacts = []
+        self.last_trace = []
         self.history = []
         self.previous_request = None
         self.last_metadata_question = None
@@ -38,8 +43,11 @@ class Agent:
         self.scenario = None
         self.insight_ids = None
         self.results.clear()
+        self.last_artifacts.clear()
+        self.last_trace.clear()
 
     def remember(self, question, answer):
+        answer = public_text(answer)
         self.history.extend([{'role': 'user', 'content': question},
                              {'role': 'assistant', 'content': answer}])
         self.history = self.history[-12:]
@@ -47,6 +55,9 @@ class Agent:
 
     def record(self, kind, question, conditions, text, sources):
         """검증에 성공한 결과만 리포트 대상으로 등록한다."""
+        text = public_text(text)
+        sources = [dict(source, data_origin=readme_source(source['path']))
+                   if source.get('path') else source for source in sources]
         self.results.append({"kind": kind, "question": question, "conditions": conditions,
                              "text": text, "sources": sources,
                              "recorded_at": datetime.now(timezone(timedelta(hours=9))).isoformat(),
@@ -61,6 +72,13 @@ class Agent:
             answer = render(result, request, question)
         except (ValueError, KeyError, TypeError, OverflowError, OSError):
             return self.remember(question, '원자료 대조 또는 조회 결과의 수치·기간·단위·집계수준 검증에 실패해 답변을 보류했습니다.')
+        if self.local_only:
+            from .comparisons import lookup_comparison, append_comparison
+            try:
+                lead, detail = lookup_comparison(result, request)
+            except (ValueError, KeyError, TypeError, OSError):
+                lead, detail = '', '추가 비교 자료를 확인하지 못해 기본 조회 결과만 제공합니다.'
+            answer = append_comparison(answer, lead, detail)
         self.previous_request = dict(request)
         self.scenario = None
         self.insight_ids = None
@@ -69,7 +87,24 @@ class Agent:
 
     def ask(self, question):
         """참조 코드 설치가 빠져도 대화를 유지하고 실행 조건을 안내한다."""
+        self.last_artifacts = []
+        self.last_trace = []
         try:
+            if is_chart_followup(question):
+                return chart_previous_answer(self, question)
+            if self.local_only:
+                from .local_tools import dispatch
+                response = dispatch(question, self)
+                if response:
+                    self.last_artifacts = response['artifacts']
+                    self.last_trace = response['trace']
+                    if response.get('scenario'):
+                        self.scenario = response['scenario']
+                    if response['success'] and response['tool'] != 'conversation':
+                        answer = self.record('local_tool', question, {'tool': response['tool']}, response['text'], response['sources'])
+                        self.results[-1]['validation'] = response['validation']
+                        return answer
+                    return self.remember(question, response['text'])
             return self._ask(question)
         except ImportError:
             return self.remember(question, '참조 저장소 또는 Python 의존성을 찾지 못했습니다. README의 설치 방법과 CITRUS_REPO_PATH를 확인하세요. 분석 설명과 가정 계산은 로컬에서 사용할 수 있습니다.')
@@ -140,6 +175,13 @@ class Agent:
         request, blocked = request_for(question, self.previous_request)
         if re.search(r'\d[\d,.]*\s*(?:억|만|천)?\s*원', question):
             return self.remember(question, '금액 입력은 외부 모델로 보내지 않습니다. 가정 계산이라면 판매가능수량·단가·비용을 알려주세요. 통계 조회라면 품종·연도·지표만 지정해 주세요.')
+        if self.local_only:
+            if blocked:
+                if blocked == CLARIFY:
+                    blocked += '\n로컬 모드에서는 품종·연도·지표를 명확히 입력해 주세요. 예: 2020년 천혜향 생산량'
+                return self.remember(question, blocked)
+            result = execute({'name': 'production', 'arguments': json.dumps(lookup_request(request))})
+            return self.verified_answer(question, request, result)
         if should_interpret(question, request, blocked):
             request, blocked = interpret(question, self.previous_request, self.client)
             if blocked:

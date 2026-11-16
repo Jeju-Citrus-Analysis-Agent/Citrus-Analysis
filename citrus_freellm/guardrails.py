@@ -5,6 +5,8 @@ validation fail closed; no second model is treated as a factuality oracle.
 """
 import math
 import re
+from .presentation import result_first
+from .sources import source_citation
 
 SOURCE = "data/raw/public/fruit_production.csv"
 QUALITY_NOTE = (
@@ -176,5 +178,28 @@ def render(data, request, question):
         lines.append("\n자료 없는 연도: " + ", ".join(map(str, displayed_missing)) + ". 보간하거나 추정하지 않았습니다.")
     if any(key == "생산면적_ha" for key, _, _ in metrics):
         lines.append("\n품질 주의: " + QUALITY_NOTE)
-    lines.append("\n출처: " + SOURCE)
-    return "\n".join(lines)
+    lines.append("\n출처: " + source_citation({'path': SOURCE}))
+    summary = []
+    for key, label, unit in metrics:
+        points = [(year, by_year.get(year, {}).get(key)) for year in display_years]
+        present = [(year, value) for year, value in points if value is not None]
+        if not present:
+            summary.append(f"{request['variety']} {label}은 요청한 연도의 자료가 없습니다.")
+        elif len(present) == 1:
+            year, value = present[0]
+            summary.append(f"{year}년 {request['variety']} {label}은 **{number(value)}{unit}**입니다.")
+        else:
+            begin, end = present[0], present[-1]
+            sentence = f"{request['variety']} {label}은 {begin[0]}년 **{number(begin[1])}{unit}**, {end[0]}년 **{number(end[1])}{unit}**입니다."
+            if key == '생산면적_ha' and begin[0] < 2017 <= end[0]:
+                sentence += ' 2017년 통계 기준이 달라 전후 증감은 비교하지 않습니다.'
+            elif not displayed_missing and len(present) == len(display_years):
+                delta = end[1] - begin[1]
+                percentage = f" ({delta / begin[1] * 100:+.2f}%)" if begin[1] else ''
+                sentence += f' 변화량은 **{delta:+,.2f}{unit}{percentage}**입니다.'
+            summary.append(sentence)
+    if area_terms and '생산면적_ha' in keys:
+        summary.insert(0, '요청한 수확·재배면적과 같은 정의인지 확인되지 않아 아래 생산면적은 참고값입니다.')
+    if displayed_missing:
+        summary.append('자료가 없는 연도: ' + ', '.join(map(str, displayed_missing)) + '. 추정하지 않았습니다.')
+    return result_first('\n\n'.join(summary), "\n".join(lines))

@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 from citrus_freellm.agent import Agent
 from citrus_freellm.analysis import plan_analysis, calculate, render_analysis, validate_calculation, validate_plan
+from citrus_freellm.presentation import split_answer
 
 
 class AnalysisTests(unittest.TestCase):
@@ -118,7 +119,9 @@ class AnalysisTests(unittest.TestCase):
         before = {"variety": "천혜향", "start_year": 2019, "end_year": 2019}
         agent.previous_request = before
         short = agent.ask("생산량 데이터는 몇 년까지 있어?")
-        self.assertLess(len(short.splitlines()), 12)
+        short_summary, short_details = split_answer(short)
+        self.assertLess(len(short_summary), 300)
+        self.assertLess(len(short_details.splitlines()), 12)
         self.assertNotIn("| 자료 |", short)
         full = agent.ask("자세히")
         self.assertIn("| 자료 |", full)

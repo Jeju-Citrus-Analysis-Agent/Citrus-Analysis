@@ -16,8 +16,8 @@ python -m pip install -r citrus_freellm/requirements-ui.txt
 python -m streamlit run citrus_freellm/web.py --server.address 127.0.0.1 --browser.gatherUsageStats false
 ```
 
-원자료 조회의 자연어 해석에는 자신의 FreeLLMAPI 서버·키가 필요합니다.
-등록된 분석 설명과 가정 계산은 API 없이 사용할 수 있습니다.
+현재 웹 도우미는 API 키 없이 저장된 자료의 조회·비교, 분석 설명과 가정 계산을 제공합니다.
+외부 자료 검색만 인터넷 연결이 필요합니다.
 [팀 검증 순서와 예상 결과](citrus_freellm/docs/TEAM_REVIEW.md)를 참고하세요.
 
 ---
@@ -128,7 +128,7 @@ jeju_citrus/
 | processed | `citrus_export_yearly.csv` | 국가별 수출량·수출액 | 2003~2025 |
 | processed | `citrus_price_daily.csv` | 노지온주 일별 출하량·평균가 (도매/직거래) | 2021-10 ~ 2026-11 (5.2개 시즌) |
 | processed | `citrus_price_monthly_box.csv` | 노지온주 월별·상자규격별 도매가격 | 2024 시즌 |
-| external | `weather/asos_daily_*.csv` | 기상청 ASOS 일자료 원본 (cp949, 10년 단위 분할) | 2004-01 ~ 2026-11 |
+| external | `weather/asos_daily_*.csv` | [기상청 ASOS 일자료](https://data.kma.go.kr/data/grnd/selectAsosRltmList.do?pgmNo=36) 원본 (cp949, 10년 단위 분할) | 2004-01 ~ 2026-11 |
 | external | `cost/standard_income_items.csv` | 표준소득표 경영비 세부 항목 15개 (원/10a). 품종별 경영비 물가지수 가중치용 | 2017·2022~2024년산 |
 | external | `cost/standard_income.csv` | 감귤 표준소득표 (원·만원/10a): 총수입·경영비·소득·생산비·순수익·자가노동 (`scripts/extract_standard_income.py`로 PDF + 판독본 `standard_income_transcribed.csv`에서 생성) | 2016~2024년산 |
 | external | `cpi/cpi_annual.csv` | 연평균 소비자물가지수 (2020=100), `검증상태` 컬럼 포함 | 2004 ~ 2025 |
@@ -146,6 +146,12 @@ jeju_citrus/
 - 자세한 근거: `python scripts/check_quality.py`, [요구사항 정의서 §4](docs/requirements_spec.md#4-데이터-품질-이슈-eda-결과)
 
 ### 외부 데이터 수집 (제주농산물수급관리센터)
+파생 통계는 다음 원문 표에서 수집·정제합니다. 상세 주소는 수집 코드의 페이지 목록과 수집 기록에 근거합니다.
+
+- 생산량·면적·조수입 및 면적당 지표: [감귤 생산정보](https://jasdc.or.kr/tangerine/output/output1.htm) (품종별 탭)
+- 연도별·업체별 가공처리 통계: [가공처리현황](https://jasdc.or.kr/tangerine/processing.htm)
+- 국가별 수출 통계: [수출현황](https://jasdc.or.kr/tangerine/export.htm)
+
 `citrus_*.csv` 4종은 [제주농산물수급관리센터](https://jasdc.or.kr)의 공개 통계표를 수집·정제한 데이터입니다. `noji_*.csv`·`varieties_summary.csv`(원본 `distribution_analysis.xlsx`)도 같은 사이트의 [유통처리 상황](https://jasdc.or.kr/tangerine/day/distribution/tangerine1.htm) 화면(노지온주·하우스온주·월동온주·만감류 탭) 표입니다.
 
 ```bash

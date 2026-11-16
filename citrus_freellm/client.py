@@ -1,4 +1,4 @@
-"""FreeLLMAPI chat transport, independent of the legacy agents."""
+"""OpenAI-compatible chat transport for FreeLLMAPI and direct OpenAI access."""
 import os
 from pathlib import Path
 from urllib.parse import urlparse
@@ -27,19 +27,25 @@ class LazyFreeLLMClient:
 class FreeLLMClient:
     def __init__(self):
         config_file = Path(__file__).with_name('.env')
+        config = {}
         if config_file.is_file():
             for line in config_file.read_text(encoding='utf-8-sig').splitlines():
                 name, separator, value = line.partition('=')
                 if separator and name.strip() in {'FREELLMAPI_API_KEY', 'FREELLMAPI_BASE_URL', 'FREELLMAPI_MODEL'}:
-                    os.environ.setdefault(name.strip(), value.strip())
-        self.key = os.getenv("FREELLMAPI_API_KEY", "").strip()
-        self.base = os.getenv("FREELLMAPI_BASE_URL", "http://localhost:3001/v1").rstrip("/")
-        self.model = os.getenv("FREELLMAPI_MODEL", "auto")
+                    config[name.strip()] = value.strip()
+        self.key = os.getenv("FREELLMAPI_API_KEY", config.get("FREELLMAPI_API_KEY", "")).strip()
+        self.base = os.getenv("FREELLMAPI_BASE_URL", config.get("FREELLMAPI_BASE_URL", "http://localhost:3001/v1")).rstrip("/")
+        self.model = os.getenv("FREELLMAPI_MODEL", config.get("FREELLMAPI_MODEL", "auto"))
         parsed = urlparse(self.base)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
             raise ValueError("FREELLMAPI_BASE_URL에 올바른 서버 주소를 입력하세요.")
         if not self.key or not self.key.isascii() or any(c.isspace() for c in self.key):
-            raise ValueError("FREELLMAPI_API_KEY에 대시보드의 통합 키를 설정하세요.")
+            raise ValueError("FREELLMAPI_API_KEY에 연결할 서비스의 API 키를 설정하세요.")
+        self.direct_openai = parsed.hostname == "api.openai.com"
+        if self.direct_openai and parsed.scheme != "https":
+            raise ValueError("OpenAI 연결 주소는 https://api.openai.com/v1을 사용하세요.")
+        if self.direct_openai and self.model == "auto":
+            raise ValueError("OpenAI 직접 연결에는 FREELLMAPI_MODEL에 사용할 모델 이름을 설정하세요.")
         self.routed_via = None
 
     def complete(self, messages, tools=None):
@@ -65,10 +71,19 @@ class FreeLLMClient:
                 429: "공급자 사용 한도에 도달했습니다. 잠시 뒤 다시 질문하거나 대시보드에서 다른 모델을 선택하세요.",
                 503: "현재 사용할 공급자 모델이 없습니다. 대시보드에서 공급자 키·모델 상태를 확인하세요."
             }
+            if self.direct_openai:
+                messages.update({
+                    401: "OpenAI API 키 인증에 실패했습니다. .env의 키를 확인하세요.",
+                    429: "OpenAI API 사용 한도에 도달했습니다. API 결제·크레딧과 요청 한도를 확인하세요.",
+                    503: "OpenAI 모델을 현재 사용할 수 없습니다. 잠시 뒤 다시 시도하세요.",
+                })
             raise RuntimeError(f"HTTP {response.status_code}: " + messages.get(response.status_code, "모델 서버에서 오류가 발생했습니다. 잠시 뒤 다시 질문하세요."))
         self.routed_via = response.headers.get("X-Routed-Via")
         try:
-            message = response.json()["choices"][0]["message"]
+            body = response.json()
+            message = body["choices"][0]["message"]
+            if self.direct_openai:
+                self.routed_via = body.get("model") or self.model
             if message.get("role") != "assistant":
                 raise ValueError
             if not message.get("content") and not message.get("tool_calls"):

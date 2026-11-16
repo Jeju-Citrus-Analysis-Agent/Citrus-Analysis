@@ -32,7 +32,8 @@ class AgentTests(unittest.TestCase):
         client.complete.side_effect = [CALL, {"role": "assistant", "content": "조회했습니다."}]
         agent = Agent(client)
         result = agent.ask("2019년과 2020년 천혜향 생산량 비교")
-        self.assertIn("data/raw/public/fruit_production.csv", result)
+        self.assertIn('[제주데이터허브](https://jejudatahub.net)', result)
+        self.assertNotIn('.csv', result)
         self.assertIn("18,044", result)
         self.assertIn("+3.16%", result)
         self.assertEqual(client.complete.call_count, 1)

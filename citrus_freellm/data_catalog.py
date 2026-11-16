@@ -6,6 +6,8 @@ import json
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from .presentation import result_first
+from .sources import source_citation
 
 FOLDER = Path(__file__).resolve().parent
 DOCUMENTED_ONLY = {
@@ -129,6 +131,7 @@ def markdown(data, selected=None):
         if record.get("stations"):
             lines.append("- 지점: " + ", ".join(record["stations"]))
         lines += ["- 출처 연결: " + record.get("origin", "미확인"), "- 확인 근거: " + "; ".join(record.get("references", []))]
+        lines.append('- 출처: ' + source_citation({'path': record['path']}))
         for note in record.get("quality", []):
             lines.append("- 주의: " + note)
         if record.get("short_months"):
@@ -167,14 +170,17 @@ def select_metadata_names(compact):
 
 def source_lines(records):
     """Only successfully opened files qualify as inspected evidence."""
-    inspected = [r["path"] for r in records if r.get("available") and r.get("status") == "파일 확인"]
-    absent = [r["path"] for r in records if not r.get("available")]
-    unreadable = [r["path"] for r in records if r.get("available") and r.get("status") != "파일 확인"]
-    lines = ["실제 확인한 파일: " + (", ".join(inspected) or "없음")]
+    inspected = [r for r in records if r.get("available") and r.get("status") == "파일 확인"]
+    absent = [r for r in records if not r.get("available")]
+    unreadable = [r for r in records if r.get("available") and r.get("status") != "파일 확인"]
+    lines = ["확인한 자료: " + (", ".join(r.get('title', '통계 자료') for r in inspected) or "없음")]
+    citations = list(dict.fromkeys(source_citation(r) for r in inspected))
+    if citations:
+        lines.append('출처: ' + ', '.join(citations))
     if absent:
-        lines.append("문서에만 기재된 미보유 파일: " + ", ".join(absent))
+        lines.append("문서에만 기재된 미보유 자료: " + ", ".join(r.get('title', '통계 자료') for r in absent))
     if unreadable:
-        lines.append("존재하지만 검사에 실패한 파일: " + ", ".join(unreadable))
+        lines.append("존재하지만 검사에 실패한 자료: " + ", ".join(r.get('title', '통계 자료') for r in unreadable))
     lines.append("정의·문서상 목록의 근거: 프로젝트 README, docs/requirements_spec.md 및 생성·정제 코드. 미보유 파일을 읽은 근거로 사용하지 않습니다. 원기관의 상세 정의 대조는 미완료입니다.")
     return lines
 
@@ -205,8 +211,8 @@ def compact_metadata(records, selected, question):
             for col in record.get("columns", []):
                 if col["unit"] and (col["name"].startswith("생산량") if "생산량" in question else True):
                     lines.append(f"- {col['name']}: {col['unit']} ({col['status']})")
-    lines.append("실제 확인한 파일: " + (", ".join(r["path"] for r in valid) or "없음"))
-    lines.append("‘자세히’라고 입력하면 파일 목록·정의·주의사항을 볼 수 있습니다.")
+    lines.extend(source_lines(records))
+    lines.append("‘자세히’라고 입력하면 자료 목록·정의·주의사항을 볼 수 있습니다.")
     return "\n".join(lines)
 
 
@@ -228,8 +234,13 @@ def metadata_answer(question):
         return explanation + "\n".join(source_lines(area_records))
     selected = select_metadata_names(compact)
     records = [r for r in data["datasets"] if selected is None or r["name"] in selected]
+    checked = sum(r.get('status') == '파일 확인' for r in records)
+    lead = f'관련 자료 {len(records)}종 중 **읽을 수 있는 파일은 {checked}개**입니다. 파일 보유 여부와 지원하는 분석은 다를 수 있습니다.'
+    fruit = next((r for r in records if r['name'] == 'fruit_production' and r.get('status') == '파일 확인'), None)
+    if fruit:
+        lead += f" 과수 생산량 조회 자료는 **{period_text(fruit)}년**입니다."
     if not re.search(r"자세|상세|전체목록", compact):
-        return compact_metadata(records, selected, compact)
+        return result_first(lead, compact_metadata(records, selected, compact))
     lines = ["현재 로컬 파일 기준 안내입니다. 보유 여부와 분석 지원 여부는 별개입니다.", "",
              "| 자료 | 파일 상태 | 실제 파일 기간 | 문서상 기간 | 채팅 지원 |",
              "|---|---|---|---|---|"]
@@ -257,7 +268,7 @@ def metadata_answer(question):
                         if column["unit"]:
                             lines.append(f"- {column['name']}: {column['unit']} — {column['definition']} ({column['status']})")
     lines += ["", *source_lines(records)]
-    return "\n".join(lines)
+    return result_first(lead, "\n".join(lines))
 
 
 def main():

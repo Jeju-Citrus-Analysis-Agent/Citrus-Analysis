@@ -1,10 +1,6 @@
 @echo off
 cd /d "%~dp0.."
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0start-server.ps1"
-if errorlevel 1 (
-  echo Server could not start. See server-error.log in citrus_freellm.
-  pause
-  exit /b 1
-)
-python -m citrus_freellm
+set "AGENT_PYTHON=python"
+if exist "%~dp0..\.venv-agent\Scripts\python.exe" set "AGENT_PYTHON=%~dp0..\.venv-agent\Scripts\python.exe"
+"%AGENT_PYTHON%" -m citrus_freellm %*
 if errorlevel 1 pause

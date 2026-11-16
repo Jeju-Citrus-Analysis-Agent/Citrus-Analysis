@@ -119,10 +119,12 @@ class DataCatalogTests(unittest.TestCase):
 
     def test_missing_paths_not_labeled_as_inspected_evidence(self):
         answer = metadata_answer("어떤 데이터가 있어? 자세히")
-        actual_line = next(line for line in answer.splitlines() if line.startswith("실제 확인한 파일:"))
-        self.assertIn("fruit_production.csv", actual_line)
-        self.assertNotIn("noji_yearly.csv", actual_line)
-        self.assertIn("문서에만 기재된 미보유 파일:", answer)
+        actual_line = next(line for line in answer.splitlines() if line.startswith("확인한 자료:"))
+        self.assertIn(self.records['fruit_production']['title'], actual_line)
+        self.assertNotIn('.csv', answer)
+        for record in self.records.values():
+            if not record.get('available'):
+                self.assertNotIn(record['title'], actual_line)
 
     def test_explicit_fruit_scope_does_not_include_special_crops(self):
         answer = metadata_answer("감귤 생산량 데이터는 몇 년까지 있어?")
@@ -136,20 +138,21 @@ class DataCatalogTests(unittest.TestCase):
         self.assertNotIn("fruit_production.csv", answer)
 
     def test_unreadable_file_is_not_inspected_or_missing(self):
-        records = [{"path": "good.csv", "available": True, "status": "파일 확인"},
-                   {"path": "bad.csv", "available": True, "status": "검사 실패"},
-                   {"path": "absent.csv", "available": False, "status": "파일 없음"}]
+        records = [{"path": "good.csv", "title": "확인된 통계", "available": True, "status": "파일 확인"},
+                   {"path": "bad.csv", "title": "검사 실패 통계", "available": True, "status": "검사 실패"},
+                   {"path": "absent.csv", "title": "미보유 통계", "available": False, "status": "파일 없음"}]
         lines = source_lines(records)
-        self.assertEqual(lines[0], "실제 확인한 파일: good.csv")
-        self.assertIn("문서에만 기재된 미보유 파일: absent.csv", lines)
-        self.assertIn("존재하지만 검사에 실패한 파일: bad.csv", lines)
+        self.assertEqual(lines[0], "확인한 자료: 확인된 통계")
+        self.assertIn("문서에만 기재된 미보유 자료: 미보유 통계", lines)
+        self.assertIn("존재하지만 검사에 실패한 자료: 검사 실패 통계", lines)
+        self.assertNotIn('.csv', '\n'.join(lines))
 
     def test_area_definition_with_absent_files_does_not_fake_evidence(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as folder, \
              patch("citrus_freellm.tools.ROOT", Path(folder)):
             answer = metadata_answer("생산면적과 수확면적은 같은 거야?")
-        self.assertIn("실제 확인한 파일: 없음", answer)
-        self.assertIn("문서에만 기재된 미보유 파일:", answer)
+        self.assertIn("확인한 자료: 없음", answer)
+        self.assertIn("문서에만 기재된 미보유 자료:", answer)
 
     def test_price_availability_message_changes_when_a_file_exists(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as folder, \
@@ -159,4 +162,6 @@ class DataCatalogTests(unittest.TestCase):
             path.write_text("일자,가격\n2026-01-01,1000\n", encoding="utf-8")
             answer = metadata_answer("가격 데이터 있어?")
         self.assertNotIn("가격 관련 자료는 현재 로컬에 없습니다", answer)
-        self.assertIn("실제 확인한 파일: data/processed/citrus_price_daily.csv", answer)
+        self.assertIn("확인한 자료: 일별 출하량·가격", answer)
+        self.assertIn('https://jasdc.or.kr', answer)
+        self.assertNotIn('.csv', answer)

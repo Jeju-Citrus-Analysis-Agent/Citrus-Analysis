@@ -7,6 +7,8 @@ import hashlib
 import json
 import re
 from pathlib import Path
+from .presentation import result_first
+from .sources import source_citation, readme_source
 
 FOLDER = Path(__file__).resolve().parent / "knowledge"
 
@@ -66,14 +68,36 @@ def explain(question, previous_ids=None, selected_ids=None):
         lines.append("아래 연관성·출하 분석은 노지온주 자료입니다. 요청 품종에도 같은 결과가 적용된다고 단정하지 않습니다.")
     for card in chosen:
         source = sources[card["source_id"]]
+        data_path = ('data/processed/citrus_price_daily.csv' if card['id'] in {'sale_timing', 'market_2026'}
+                     else 'data/processed/citrus_production_yearly.csv')
         lines += ["", f"**{card['title']}**", "적용 범위·가정: " + card["scope"],
                   "분석 자료의 관측·추정:", *["- " + fact for fact in card["facts"]],
                   "해석: " + card["reasoning"], "검토할 대안:", *["- " + text for text in card["alternatives"]],
                   "한계:", *["- " + text for text in card["limits"]],
-                  f"출처: [{source['title']}]({source['url']})"]
-    return {"text": "\n".join(lines), "conditions": {"evidence_ids": ids, "mode": "analysis_summary"},
+                  '데이터 출처: ' + source_citation({'path': data_path}) + ' (README 기준)',
+                  f"분석 근거: [{source['title']}]({source['url']})"]
+        if card['id'] == 'weather_relation':
+            lines.append('기상 출처: ' + source_citation({'path': 'data/processed/weather_daily.csv'}))
+    summary = []
+    if len(lines) > 1 and lines[1].startswith(('요청하신', '아래 연관성')):
+        summary.append(lines[1])
+    caveats = {
+        'revenue_area': '비용을 반영한 순이익 순위는 아닙니다.',
+        'sale_timing': '향후 가격이나 저장 후 이익을 보장하지 않습니다.',
+        'supply_price': '관측한 관계이며 원인이나 미래 가격 공식이 아닙니다.',
+        'weather_relation': '상관이 인과관계를 뜻하지는 않습니다.',
+        'market_2026': '해당 기준일의 기록이며 연간 최종 가격이나 미래 예측이 아닙니다.',
+    }
+    for card in chosen[:2]:
+        summary.append(f"기존 분석 기준({card['scope']}): {card['facts'][0]} {caveats[card['id']]}")
+    if len(chosen) > 2:
+        summary.append(f'전체 {len(chosen)}개 주제의 근거는 자세한 내용에서 확인하세요.')
+    return {"text": result_first('\n\n'.join(summary), "\n".join(lines)), "conditions": {"evidence_ids": ids, "mode": "analysis_summary"},
             "sources": [{"id": sources[c["source_id"]]["id"], "url": sources[c["source_id"]]["url"],
-                         "sha256": sources[c["source_id"]]["sha256"]} for c in chosen],
+                         "sha256": sources[c["source_id"]]["sha256"],
+                         "data_origin": readme_source('data/processed/citrus_price_daily.csv'
+                             if c['id'] in {'sale_timing', 'market_2026'}
+                             else 'data/processed/citrus_production_yearly.csv')} for c in chosen],
             "kind": "analysis_explanation"}
 
 

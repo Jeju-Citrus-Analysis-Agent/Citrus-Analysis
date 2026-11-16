@@ -8,6 +8,7 @@ dist/
 
 # 가상환경
 .venv/
+.venv-agent/
 venv/
 .env
 

@@ -1,6 +1,7 @@
 """Local-only, explicit-assumption profit and break-even calculations."""
 import re
 from decimal import Decimal, InvalidOperation
+from .presentation import result_first
 
 D = Decimal
 NUMBER = r"-?\d[\d,]*(?:\.\d+)?"
@@ -157,4 +158,18 @@ def render_scenario(plan):
               "해석·한계: 가격·판매량·비용이 실제로 이렇게 변한다는 예측은 아닙니다. 비용에 빠진 자가노동·토지·감가상각 등이 있으면 그 항목까지 반영한 순이익으로 해석할 수 없습니다.",
               "대안: 판매량·가격·비용의 가정을 각각 바꾸어 비교할 수 있습니다. 후속 변동률은 위 기준 가정에 적용하며 중복 누적하지 않습니다.",
               "출처: 이 대화의 사용자 입력 가정. 계산식과 비용 범위는 위에 명시했습니다."]
-    return "\n".join(lines)
+    summary = f"입력한 가정 기준으로 손익분기단가는 **{fmt(result['changed_break_even'])}원/kg**입니다."
+    if 'after' in result and plan['operation'] != 'break_even':
+        summary = f"입력한 가정 기준으로 {label}은 **{fmt(result['after']['profit'])}원**입니다."
+        if plan['changes']:
+            summary += f" 변경 전 {fmt(result['before']['profit'])}원에서 바뀐 결과입니다."
+        summary += f" 손익분기단가는 **{fmt(result['changed_break_even'])}원/kg**입니다."
+    summary += ' 실제 실적이나 미래 예측은 아닙니다.'
+    if plan['operation'] == 'profit' and not plan['changes'] and result['base']['price_won_kg']:
+        lines += ['\n**추가 비교: 가격만 바꾼 예시**',
+                  '판매량·비용을 고정하고 기준 단가를 각각 10% 내리거나 올린 가정입니다. 가격 예측이 아닙니다.',
+                  '| 가격 가정 | 매출(원) | ' + label + '(원) | 기준 대비 차이(원) |', '|---|---|---|---|']
+        for rate in (-10, 0, 10):
+            changed = compute(dict(plan, changes={'price_won_kg': str(rate)}))
+            lines.append(f"| {rate:+d}% | {fmt(changed['after']['revenue'])} | {fmt(changed['after']['profit'])} | {fmt(changed['after']['profit'] - result['after']['profit'])} |")
+    return result_first(summary, "\n".join(lines))

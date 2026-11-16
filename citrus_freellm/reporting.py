@@ -54,7 +54,8 @@ def save_report(records, all_results=False):
                 "모든 결과가 최신 자료이거나 실제 농가 실적이라는 뜻은 아닙니다."]
     for index, record in enumerate(chosen, 1):
         label = {"verified_lookup": "원자료 조회", "verified_calculation": "원자료 기반 계산",
-                 "user_scenario": "사용자 가정 계산", "analysis_explanation": "기존 분석 근거 설명"}[record["kind"]]
+                 "user_scenario": "사용자 가정 계산", "analysis_explanation": "기존 분석 근거 설명",
+                 "local_tool": "도구 실행 결과"}[record["kind"]]
         markdown += ["", f"## 결과 {index} — {label}", "질문: " + record["question"],
                      "", record["text"]]
         if record.get("recorded_at"):

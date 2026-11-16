@@ -6,6 +6,8 @@ from decimal import Decimal
 from .guardrails import ALIASES, QUALITY_NOTE, validate_evidence
 from .reference_check import verify_reference
 from .tools import production
+from .presentation import result_first
+from .sources import source_citation
 
 
 class AnalysisUnavailable(ValueError):
@@ -164,5 +166,23 @@ def render_analysis(result, plan):
         lines.append("\n명시한 비교 대상 안에서만 산정한 순위입니다. 동률은 공동 순위(1, 1, 3)이며 경계의 동률은 모두 표시합니다.")
     if unit == "ha":
         lines.append("\n품질 주의: " + QUALITY_NOTE)
-    lines.append("\n출처: data/raw/public/fruit_production.csv (값·연도·계산 독립 대조 통과)")
-    return "\n".join(lines)
+    lines.append("\n출처: " + source_citation({'path': 'data/raw/public/fruit_production.csv'})
+                 + " (값·연도·계산 독립 대조 통과)")
+    if ranking:
+        winners = [name for name in order if values[name] == values[order[0]]]
+        summary = f"{years}년 지정한 비교 대상 중 {'가장 적은' if plan['ascending'] else '가장 많은'} {label}은 **{'·'.join(winners)} ({values[order[0]]:,.2f}{unit})**입니다."
+        if len(winners) > 1:
+            summary += ' 공동 순위입니다.'
+    else:
+        prefix = f"{years}년 " + ('연도별 산술평균: ' if plan['operation'] == 'average' else '')
+        summary = prefix + ', '.join(f"**{name} {values[name]:,.2f}{unit}**" for name in order[:3]) + '.'
+        if len(order) > 3:
+            summary += f' 전체 {len(order)}개 품종의 결과는 아래 표에서 확인하세요.'
+        if plan['operation'] == 'compare' and len(order) == 2:
+            if values[order[1]] == values[order[0]]:
+                summary += ' 두 품종의 값은 같습니다.'
+            else:
+                summary += f' {order[1]}은 {order[0]}보다 **{abs(values[order[1]] - values[order[0]]):,.2f}{unit} {"많습니다" if values[order[1]] > values[order[0]] else "적습니다"}**.'
+    if unit == 'ha':
+        summary += ' 면적은 원자료의 생산면적 기준입니다.'
+    return result_first(summary, "\n".join(lines))

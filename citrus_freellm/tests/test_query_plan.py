@@ -106,15 +106,15 @@ class QueryPlanTests(unittest.TestCase):
         self.assertIn("생산량 (톤)", third)
         self.assertNotIn("생산면적 (ha)", third)
         agent.reset()
-        self.assertIn("명시", agent.ask("면적은?"))
+        self.assertIn("함께 알려주세요", agent.ask("면적은?"))
         self.assertEqual(client.complete.call_count, 3)
 
     def test_missing_year_selection_is_explicit(self):
-        question = "2019년과 2021년 천혜향 생산량 비교"
+        question = "2019년과 2026년 천혜향 생산량 비교"
         plan = self.plan(question)
         answer = render(production(**lookup_request(plan)), plan, question)
         self.assertNotIn("| 2020 |", answer)
-        self.assertIn("| 2021 | 자료 없음 |", answer)
+        self.assertIn("| 2026 | 자료 없음 |", answer)
         self.assertNotIn("변화율:", answer)
 
     def test_failed_followup_does_not_change_last_verified_plan(self):

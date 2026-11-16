@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .agent import Agent
-from .client import FreeLLMClient
+from .client import make_client
 from .guardrails import lookup_request, render, request_for
 from .tools import production
 
@@ -40,22 +40,79 @@ def run_case(case, client):
         return {"id": case["id"], "passed": False, "error": str(exc)}
 
 
+def actual_route(agent, before):
+    """Which path answered: a local tool, an analysis card, a scenario, metadata or nothing."""
+    if len(agent.results) > before:
+        last = agent.results[-1]
+        if last["kind"] == "local_tool":
+            return last["conditions"]["tool"], True
+        if last["kind"] == "analysis_explanation":
+            return last["conditions"]["evidence_ids"], True
+        return last["kind"], True
+    if agent.last_trace:
+        from .local_tools import TOOL_GUIDE
+        keys = {title: key for key, title, _ in TOOL_GUIDE}
+        title = agent.last_trace[0]["tool"]
+        return keys.get(title, title), agent.last_trace[0]["success"]
+    if agent.last_metadata_question:
+        return "metadata", True
+    return "blocked", False
+
+
+def run_local_case(case):
+    """Offline case: route, success and required/forbidden phrases. No model, no network."""
+    agent = Agent()
+    answer = agent.ask(case["question"])
+    route, succeeded = actual_route(agent, 0)
+    routes = route if isinstance(route, list) else [route]
+    checks = {"route": case["route"] in routes,
+              "success": succeeded == case.get("success", case["route"] != "blocked"),
+              "include": [p for p in case.get("include", []) if p not in answer],
+              "exclude": [p for p in case.get("exclude", []) if p in answer]}
+    if case.get("lead"):
+        conclusion = answer.split("**세부 설명**")[0]
+        checks["lead"] = case["lead"] in conclusion.split("):", 1)[-1][:40]
+    passed = checks["route"] and checks["success"] and not checks["include"] and not checks["exclude"] and checks.get("lead", True)
+    return {"id": case["id"], "question": case["question"], "passed": passed, "expected_route": case["route"],
+            "actual_route": routes, "checks": checks, "answer": answer}
+
+
+def run_local(path=None):
+    cases = json.loads((Path(path) if path else FOLDER / "cost_evaluation_cases.json").read_text(encoding="utf-8"))
+    results = [run_local_case(case) for case in cases]
+    for r in results:
+        print(f"{'PASS' if r['passed'] else 'FAIL'}: {r['id']} → {r['actual_route']}", flush=True)
+        if not r["passed"]:
+            print("   checks:", json.dumps(r["checks"], ensure_ascii=False), flush=True)
+    report = {"time": datetime.now(timezone(timedelta(hours=9))).isoformat(), "mode": "local",
+              "passed": sum(r["passed"] for r in results), "total": len(results), "results": results}
+    directory = FOLDER / "reports"
+    directory.mkdir(exist_ok=True)
+    (directory / "local_evaluation_latest.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"Result: {report['passed']}/{report['total']}")
+    return 0 if report["passed"] == report["total"] else 1
+
+
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    parser = argparse.ArgumentParser(description="질문 해석의 실제 모델 평가")
+    parser = argparse.ArgumentParser(description="질문 해석의 실제 모델 평가 / 로컬 경영비·손익분기 평가")
     parser.add_argument("--live", action="store_true", help="질문과 직전 조건을 외부 모델로 전송")
+    parser.add_argument("--local", action="store_true", help="모델 없이 cost_evaluation_cases.json을 평가")
+    parser.add_argument("--cases", help="--local에 쓸 사례 파일 (기본 cost_evaluation_cases.json)")
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--interval", type=float, default=8, help="사례 간 대기 초 (기본 8)")
     args = parser.parse_args()
+    if args.local:
+        return run_local(args.cases)
     if not args.live:
-        parser.exit(0, "실제 공급자에게 질문·직전 조건을 보내려면 --live를 지정하세요.\n")
+        parser.exit(0, "실제 공급자에게 질문·직전 조건을 보내려면 --live를, 모델 없이 로컬 평가는 --local을 지정하세요.\n")
     if not 1 <= args.repeats <= 5:
         parser.error("--repeats는 1~5 범위입니다.")
     if not 0 <= args.interval <= 30:
         parser.error("--interval은 0~30 범위입니다.")
     cases = json.loads((FOLDER / "evaluation_cases.json").read_text(encoding="utf-8"))
-    client = FreeLLMClient()
+    client = make_client()
     results = []
     for repeat in range(args.repeats):
         for case in cases:

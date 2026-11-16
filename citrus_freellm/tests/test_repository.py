@@ -26,7 +26,7 @@ class RepositoryTests(unittest.TestCase):
             subprocess.run(["git", "-C", str(root), "-c", "core.autocrlf=true", "checkout-index", "--all", "--prefix=" + checkout.as_posix() + "/"], check=True, capture_output=True)
             with patch("citrus_freellm.insights.FOLDER", checkout / "knowledge"):
                 cards, _ = load_knowledge()
-            self.assertEqual(len(cards), 5)
+            self.assertEqual(len(cards), 11)
 
     @patch.dict(os.environ, {}, clear=True)
     def test_sibling_and_repository_internal_layout(self):

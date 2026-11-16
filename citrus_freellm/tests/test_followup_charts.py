@@ -40,15 +40,44 @@ class FollowupChartTests(unittest.TestCase):
                 self.assertIn('2017년', answer)
                 self.assertEqual(chart['chart_kind'], 'bar')
 
-    def test_weather_uses_displayed_rows_and_separate_axes(self):
+    def test_weather_metrics_share_one_ratio_chart(self):
         agent = Agent()
         agent.ask('2020년 서귀포 날씨 보여줘')
         expected = table_artifacts(agent.results[-1]['text'], '그래프로 그려줘')
-        agent.ask('그래프로 그려줘')
+        answer = agent.ask('그래프로 그려줘')
         self.assertEqual(agent.last_artifacts, expected)
-        self.assertGreaterEqual(len(agent.last_artifacts), 3)
-        self.assertTrue(all(len(c['data']) == 12 for c in agent.last_artifacts))
-        self.assertEqual(len({c['y'] for c in agent.last_artifacts[:3]}), 3)
+        # Derived '비교 분석' tables are not charted when the answer's own table exists.
+        self.assertEqual(len(agent.last_artifacts), 1)
+        chart = agent.last_artifacts[0]
+        self.assertEqual(chart['series'], '지표')
+        self.assertEqual(chart['y'], '비율(%)')
+        metrics = list(dict.fromkeys(row['지표'] for row in chart['data']))
+        self.assertEqual(metrics, ['평균 기온(℃)', '강수량(mm)'])  # 관측일 수 is coverage, not a measure
+        self.assertEqual(len(chart['data']), 12 * len(metrics))
+        for metric in metrics:
+            rows = [r for r in chart['data'] if r['지표'] == metric]
+            self.assertEqual(max(r['비율(%)'] for r in rows), 100.0)
+            peak = max(rows, key=lambda r: r['원래 값'])
+            self.assertEqual(peak['비율(%)'], 100.0)
+        self.assertIn('비율(%)로', answer)
+
+    def test_ratio_bases(self):
+        yearly = ('| 연도 | 품종 | 경영비(만원/10a) | 소득(만원/10a) | 소득 순위(큰 값=1) |\n|---|---|---|---|---|\n'
+                  '| 2016 | 노지온주 | 100 | 200 | 1 |\n| 2017 | 노지온주 | 150 | 100 | 1 |\n| 2018 | 노지온주 | 125 | 300 | 1 |\n')
+        chart, = table_artifacts(yearly, '그래프로 그려줘')
+        self.assertEqual(chart['basis'], '2016 = 100')
+        self.assertEqual([r['항목'] for r in chart['data']][:3], ['2016', '2017', '2018'])  # constant 품종 dropped
+        self.assertNotIn('소득 순위(큰 값=1)', {r['지표'] for r in chart['data']})
+        self.assertEqual([r['비율(%)'] for r in chart['data'] if r['지표'] == '경영비(만원/10a)'], [100.0, 150.0, 125.0])
+        negative = yearly.replace('| 2016 | 노지온주 | 100 | 200 |', '| 2016 | 노지온주 | 100 | -50 |')
+        chart, = table_artifacts(negative, '선 그래프로 그려줘')
+        self.assertIn('절댓값', chart['basis'])
+        self.assertEqual(chart['chart_kind'], 'line')
+        self.assertEqual([r['비율(%)'] for r in chart['data'] if r['지표'] == '소득(만원/10a)'], [-16.7, 33.3, 100.0])
+        single = '| 품종 | 생산량 (톤) |\n|---|---|\n| 한라봉 | 10 |\n| 천혜향 | 20 |\n'
+        chart, = table_artifacts(single, '그래프로 그려줘')
+        self.assertNotIn('series', chart)  # one metric keeps its own unit
+        self.assertEqual(chart['unit'], '톤')
 
     def test_no_table_reset_or_unrelated_answer_never_uses_stale_results(self):
         agent = Agent()

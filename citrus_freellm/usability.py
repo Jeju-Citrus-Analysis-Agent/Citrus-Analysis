@@ -1,5 +1,6 @@
 """Local UI helpers: actual coverage, explicit follow-ups and readable numbers."""
 from copy import deepcopy
+from functools import lru_cache
 from decimal import Decimal
 import re
 
@@ -61,6 +62,17 @@ def source_availability():
             record.update(available=False, period='파일 없음 또는 확인 필요')
         records.append(record)
     return records
+
+
+@lru_cache(maxsize=1)
+def jasdc_years():
+    """Years in the 2004~ citrus series that answers lookups outside the fruit table."""
+    from .tools import JASDC_SOURCE
+    try:
+        frame, _ = lt.read_source(JASDC_SOURCE)
+        return sorted(int(y) for y in pd.to_numeric(frame['연도'], errors='coerce').dropna().unique())
+    except (OSError, ValueError, KeyError, lt.ToolUnavailable):
+        return []
 
 
 def followup_context(question, agent, availability):
@@ -161,3 +173,85 @@ def unit_hints(answer):
     if re.search(r'강수량.*mm', text):
         hints.append('강수량 1mm는 비가 물 높이 1mm만큼 쌓인 양입니다.')
     return hints
+
+
+# Standalone questions only: a suggestion must work no matter what came before it.
+EXTRA_EXAMPLES = ('2020년 천혜향 생산량 알려줘', '2019년과 2020년 한라봉 생산량 비교', '어떤 데이터가 있어?',
+                  '어떤 품종이 면적당 매출이 높나?', '언제 팔면 비싼가?', '손익분기 분석 설명해줘', '물가 보정 결과 알려줘',
+                  '판매량 1000kg, 단가 4000원, 총비용 300만원, 단가 10% 하락 시 이익은?')
+DEFAULT_EXAMPLES = ('2020년 천혜향 생산량 알려줘', '천혜향 생산량을 그래프로 보여줘', '어떤 데이터가 있어?')
+TOPICS = {
+    '생산': r'생산|수확|얼마나\s*났|많이\s*났', '면적': r'면적', '날씨': r'날씨|기온|강수|비가|더웠|추웠',
+    '수출': r'수출', '가공': r'가공', '가격': r'가격|단가|시세|비싸|싸게|팔면|출하',
+    '이익': r'이익|수익|손익|적자|흑자|판매량', '소득': r'소득|경영비|비용|농가', '물가': r'물가|CPI|실질',
+    '그래프': r'그래프|차트|그려', '문서': r'문서', '자료': r'자료|데이터|빠진|누락|중복', '매출': r'매출|면적당',
+}
+
+
+def needs_examples(question, answer, agent):
+    """A reply without a verified conclusion means the question could not be answered."""
+    from .presentation import SUMMARY_HEADER, split_answer
+    if re.search(r'보고서|리포트|/report', question):
+        return False
+    if answer.startswith(SUMMARY_HEADER):
+        # A conclusion can still be "nothing found" for the requested condition.
+        return bool(re.search(r'자료가 없습니다|찾지 못했습니다', split_answer(answer)[0]))
+    conversation = next(title for key, title, _ in lt.TOOL_GUIDE if key == 'conversation')
+    return not any(step.get('tool') == conversation for step in agent.last_trace)
+
+
+@lru_cache(maxsize=256)
+def answers(question):
+    from .agent import Agent
+    from .presentation import SUMMARY_HEADER
+    try:
+        return Agent(local_only=True).ask(question).startswith(SUMMARY_HEADER)
+    except Exception:  # A suggestion that cannot run is simply not offered.
+        return False
+
+
+def related_examples(question, availability, limit=3):
+    """Clickable questions close to what was asked, each checked to produce an answer."""
+    source = next((r for r in availability if r['key'] == 'production' and r.get('available')), None)
+    variety_years = source['variety_years'] if source else {}
+    compact = re.sub(r'\s+', '', question)
+    variety = next((name for name in sorted(variety_years, key=len, reverse=True) if name in compact), None)
+    pool = [q for key, _, questions in lt.TOOL_GUIDE if key != 'web_search' for q in questions] + list(EXTRA_EXAMPLES)
+    if variety:
+        # Same question shapes, but about the variety the reader named.
+        pool = [q.replace('천혜향', variety).replace('한라봉', variety) for q in pool] + pool
+        years = variety_years[variety]
+        asked = [int(y) for y in re.findall(r'(?<!\d)((?:19|20)\d{2})(?!\d)', question) if int(y) in years]
+        year = asked[0] if asked else years[-1]
+        pool.insert(0, f'{year}년 {variety} 생산량 알려줘')
+    asked_topics = {name for name, pattern in TOPICS.items() if re.search(pattern, question)}
+
+    def score(candidate):
+        shared = sum(1 for name in asked_topics if re.search(TOPICS[name], candidate))
+        return shared * 2 + (variety is not None and variety in candidate)
+
+    ranked = [q for q in sorted(dict.fromkeys(pool), key=score, reverse=True) if score(q) > 0]
+    chosen = []
+    # Checking runs the question, so stop as soon as enough have worked.
+    for candidate in ranked + [q for q in DEFAULT_EXAMPLES if q not in ranked]:
+        if len(chosen) == limit:
+            break
+        if candidate not in chosen and answers(candidate):
+            chosen.append(candidate)
+    return chosen
+
+
+APOLOGY = '죄송해요, 이 질문은 제가 바로 답하기 어려워요. 🍊 아래 예시 질문을 참고해 주세요.'
+# Reasons worth keeping: what data exists, not instructions on how to phrase a question.
+SPECIFIC_REASON = re.compile(r'(?:19|20)\d{2}\s*~\s*(?:19|20)\d{2}년산?만|자료에 없는 연도|없는 해:|파일이 없|자료가 없습니다')
+
+
+def friendly_failure(answer):
+    """Replace stiff 'specify the variety/year' templates with a short apology.
+
+    The original wording stays in the agent's history; only what the reader sees changes.
+    A concrete data-range reason (e.g. "레드향 표준소득표는 2020~2024년산만 있습니다") is kept.
+    """
+    lines = [line.strip() for line in answer.splitlines() if line.strip()]
+    reasons = [line for line in lines if SPECIFIC_REASON.search(line)]
+    return APOLOGY + ('\n\n' + reasons[0] if reasons else '')

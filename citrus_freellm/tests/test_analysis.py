@@ -19,7 +19,7 @@ class AnalysisTests(unittest.TestCase):
     def test_comparison_golden_values(self):
         plan = self.plan("2020년 한라봉과 천혜향 생산량 비교")
         answer = render_analysis(calculate(plan), plan)
-        for expected in ("41,222", "18,614", "-22,608.00", "-54.84%"):
+        for expected in ("41,222", "18,614", "-22,608", "-54.84%"):
             self.assertIn(expected, answer)
 
     def test_rank_has_defined_group_and_correct_top_three(self):
@@ -43,7 +43,7 @@ class AnalysisTests(unittest.TestCase):
         self.assertIn("14,671.5", answer)
 
     def test_missing_year_does_not_reduce_denominator(self):
-        plan = self.plan("2019~2021년 천혜향 생산량 평균")
+        plan = self.plan("2019~2026년 천혜향 생산량 평균")
         with self.assertRaises(ValueError):
             calculate(plan)
 

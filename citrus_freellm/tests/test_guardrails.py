@@ -25,7 +25,7 @@ class GuardrailTests(unittest.TestCase):
 
     def test_known_values_and_only_used_source(self):
         answer = render(self.evidence, REQUEST, QUESTION)
-        for value in ("18,044", "18,614", "+570.00", "+3.16%"):
+        for value in ("18,044", "18,614", "+570", "+3.16%"):
             self.assertIn(value, answer)
         self.assertNotIn("weather", answer)
         self.assertNotIn("ha", answer)
@@ -76,9 +76,9 @@ class GuardrailTests(unittest.TestCase):
                 render(data, REQUEST, QUESTION)
 
     def test_missing_years_not_invented(self):
-        request = dict(REQUEST, end_year=2021)
-        answer = render(production(**request), request, "2019~2021 천혜향 생산량")
-        self.assertIn("| 2021 | 자료 없음 |", answer)
+        request = dict(REQUEST, end_year=2026)
+        answer = render(production(**request), request, "2019~2026 천혜향 생산량")
+        self.assertIn("| 2026 | 자료 없음 |", answer)
         self.assertNotIn("변화율:", answer)
 
     def test_area_discontinuity(self):
@@ -125,4 +125,4 @@ class GuardrailTests(unittest.TestCase):
         agent.previous_request = REQUEST
         agent.reset()
         self.assertIsNone(agent.previous_request)
-        self.assertIn("명시", agent.ask("그러면 2018년은?"))
+        self.assertIn("함께 알려주세요", agent.ask("그러면 2018년은?"))

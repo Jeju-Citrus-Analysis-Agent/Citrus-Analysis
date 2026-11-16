@@ -23,6 +23,15 @@ PARENTS = {
         'noji_size.csv', 'varieties_summary.csv')},
 }
 
+# External reference tables (data/external). Only README-documented links become URLs.
+EXTERNAL_TITLES = {
+    'standard_income.csv': ('제주농산물수급관리센터', '「감귤유통처리 분석」 표준소득 분석표 추출·판독 (data/external/README_cost_cpi.md)'),
+    'cpi_annual.csv': ('국가지표체계 소비자물가지수', '연평균, 2020=100 (data/external/README_cost_cpi.md)'),
+    'kosis_farm_purchase_price_quarterly.csv': ('KOSIS 농가구입가격지수', '농가판매 및 구입가격조사, 2020=100, 분기 원본'),
+}
+EXTERNAL_DISPLAY = {'standard_income.csv': '제주농산물수급관리센터 「감귤유통처리 분석」 표준소득표'}
+TITLE_WITHOUT_URL = {'기상청 ASOS 일자료', '국가지표체계 소비자물가지수', 'KOSIS 농가구입가격지수'}
+
 
 def readme_source(path):
     """Return only links documented in README; never infer a dataset detail URL."""
@@ -46,20 +55,23 @@ def readme_source(path):
         note = '수동 다운로드한 가격·출하 표를 정제한 자료. README에 상세 원문 주소 미기재'
     elif name == 'asos_daily_original' or name.startswith('asos_daily_'):
         label = '기상청 ASOS 일자료'
+    elif name in EXTERNAL_TITLES:
+        label, note = EXTERNAL_TITLES[name]
     else:
         return None
     try:
         readme = (repository_root() / 'README.md').read_text(encoding='utf-8')
     except OSError:
-        if label == '기상청 ASOS 일자료':
-            return {'title': label, 'note': 'README에서 원문 URL을 확인하지 못함', 'lineage': lineage, 'transformations': transformations}
-        return None
+        readme = ''
     match = re.search(r'\[' + re.escape(label) + r'\]\((https://[^\s)]+)\)', readme)
     if not match:
-        if label == '기상청 ASOS 일자료':
-            return {'title': label, 'note': 'README에서 원문 URL을 확인하지 못함', 'lineage': lineage, 'transformations': transformations}
+        if label in TITLE_WITHOUT_URL:
+            missing = 'README에서 원문 URL을 확인하지 못함'
+            return {'title': label, 'note': f'{note}; {missing}' if note else missing,
+                    'lineage': lineage, 'transformations': transformations}
         return None
-    title = '제주농산물수급관리센터 · 유통처리 상황' if label == '유통처리 상황' else label
+    title = {'유통처리 상황': '제주농산물수급관리센터 · 유통처리 상황',
+             '제주농산물수급관리센터': EXTERNAL_DISPLAY.get(name, label)}.get(label, label)
     return {'title': title, 'url': match[1], 'lineage': lineage,
             'transformations': transformations, **({'note': note} if note else {})}
 
@@ -77,7 +89,7 @@ def source_citation(source):
     if source.get('url'):
         return f"[{source.get('title', source['url'])}]({source['url']})"
     if path:
-        return '프로젝트 공개 문서' if path.endswith('.md') else '원문 출처 미확인'
+        return '공개 문서' if path.endswith('.md') else '원문 출처 미확인'
     return '사용자 입력'
 
 

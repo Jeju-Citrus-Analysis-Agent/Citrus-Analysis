@@ -1,5 +1,4 @@
 import copy
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -57,7 +56,7 @@ class InsightReportTests(unittest.TestCase):
         answer = Agent(client).ask("감귤 농사로 돈을 벌려면 어떤 품종을 골라야 해?")
         self.assertIn("매출", answer)
         self.assertIn("순이익", answer)
-        self.assertIn("확보", answer)
+        self.assertIn("경영비를 뺀", answer)
 
     def test_report_without_result_does_not_write(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as directory:
@@ -73,24 +72,38 @@ class InsightReportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as directory:
             with patch("citrus_freellm.reporting.OUTPUT", Path(directory)):
                 paths = save_report(agent.results, all_results=True)
-                self.assertEqual(len(paths), 3)
-                payload = json.loads(Path(next(p for p in paths if p.endswith('.json'))).read_text(encoding="utf-8"))
-                self.assertEqual([r["kind"] for r in payload["results"]], ["user_scenario", "analysis_explanation"])
-                self.assertIn("sha256", payload["results"][1]["sources"][0])
+                self.assertEqual(sorted(Path(p).suffix for p in paths), ['.md', '.pdf'])
                 markdown = Path(next(p for p in paths if p.endswith('.md'))).read_text(encoding="utf-8")
+                self.assertIn("사용자 가정 계산", markdown)
+                self.assertIn("기존 분석 근거 설명", markdown)
                 self.assertIn("600,000", markdown)
                 self.assertIn("상관이 인과", markdown)
+                # Provenance that used to live in a JSON file is now the report's own appendix.
+                appendix = markdown.split("## 출처 기록", 1)[1]
+                self.assertIn("sha256 " + agent.results[1]["sources"][0]["sha256"], appendix)
+                pdf = Path(next(p for p in paths if p.endswith('.pdf'))).read_bytes()
+                self.assertTrue(pdf.startswith(b"%PDF"))
 
-    def test_report_html_escapes_question_and_does_not_overwrite(self):
-        record = {"kind": "user_scenario", "question": "<script>alert(1)</script>", "conditions": {}, "sources": [], "text": "검증된 결과"}
+    def test_report_keeps_odd_questions_and_does_not_overwrite(self):
+        record = {"kind": "user_scenario", "question": "<script>alert(1)</script> 🍊 **굵게** | 표 |", "conditions": {},
+                  "sources": [], "text": "검증된 결과\n\n| 구분 | 값 |\n|---|---|\n| 매출 | 1,000 |"}
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as directory:
             with patch("citrus_freellm.reporting.OUTPUT", Path(directory)):
                 first = save_report([record])
                 second = save_report([record])
                 self.assertNotEqual(first, second)
-                body = Path(next(p for p in first if p.endswith('.html'))).read_text(encoding="utf-8")
-                self.assertNotIn("<script>", body)
-                self.assertIn("&lt;script&gt;", body)
+                self.assertEqual(len(first), 2)
+                markdown = Path(next(p for p in first if p.endswith('.md'))).read_text(encoding="utf-8")
+                self.assertIn("<script>alert(1)</script>", markdown)  # plain text file; nothing executes it
+                self.assertTrue(Path(next(p for p in first if p.endswith('.pdf'))).read_bytes().startswith(b"%PDF"))
+
+    def test_missing_korean_font_still_saves_markdown(self):
+        record = {"kind": "user_scenario", "question": "질문", "conditions": {}, "sources": [], "text": "결과"}
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as directory:
+            with patch("citrus_freellm.reporting.OUTPUT", Path(directory)), \
+                 patch("citrus_freellm.reporting.korean_font", return_value=(None, None)):
+                paths = save_report([record])
+                self.assertEqual([Path(p).suffix for p in paths], ['.md'])
 
     def test_failed_analysis_not_recorded_as_success(self):
         agent = Agent(Mock())

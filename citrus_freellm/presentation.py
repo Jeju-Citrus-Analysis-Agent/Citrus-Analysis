@@ -3,6 +3,12 @@ SUMMARY_HEADER = '**결론**'
 DETAILS_HEADER = '**세부 설명**'
 
 
+def number(value, signed=False):
+    """18044.0 reads as 18,044 and 16.5 as 16.5: no padded decimal places."""
+    text = f"{value:{'+' if signed else ''},.2f}"
+    return text.rstrip("0").rstrip(".") if "." in text else text
+
+
 def result_first(summary, details):
     return f'{SUMMARY_HEADER}\n\n{summary.strip()}\n\n{DETAILS_HEADER}\n\n{details.strip()}'
 

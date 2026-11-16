@@ -41,9 +41,58 @@ def numeric(value):
     return result
 
 
+RATIO = '비율(%)'
+
+
+YEAR_COLUMNS = {'연도', '기준연도', '산지연도'}
+# Numeric-looking columns that label rows (time positions), never values to plot.
+AXIS_COLUMNS = YEAR_COLUMNS | {'월', '월구분', '연월', '일자', '날짜'}
+
+
+def is_rank(name):
+    # Ranks restate another column; observation counts describe data coverage.
+    return '순위' in name or name.replace(' ', '') == '관측일수'
+
+
+def main_tables(text):
+    """Chart the answer's own table; derived '비교 분석' tables only when nothing precedes them."""
+    head, marker, _ = text.partition('**비교 분석**')
+    return displayed_tables(head) if marker and displayed_tables(head) else displayed_tables(text)
+
+
+def ratio_basis(labels, series):
+    """Time rows compare with their first row; categories with each metric's maximum."""
+    # Only a run of whole years is a trend worth indexing to its start (e.g. 2016 = 100).
+    years = [re.fullmatch(r'((?:19|20)\d{2})(?:년산|년)?', label) for label in labels]
+    if all(years) and [int(y[1]) for y in years] == sorted({int(y[1]) for y in years}):
+        if all(values[0] is not None and values[0] > 0 for _, values in series):
+            return 'first', f'{labels[0]} = 100'
+    if all(all(v is None or v >= 0 for v in values) for _, values in series):
+        return 'max', '각 지표의 최댓값 = 100'
+    return 'abs', '각 지표의 절댓값 최댓값 = 100 (음수 포함)'
+
+
+def combined_artifact(table_number, labels, series, kind):
+    """One chart for several metrics: each metric rescaled to a shared % scale."""
+    mode, basis = ratio_basis(labels, series)
+    data = []
+    for metric, values in series:
+        known = [v for v in values if v is not None]
+        base = {'first': values[0], 'max': max(known, default=0),
+                'abs': max((abs(v) for v in known), default=0)}[mode]
+        for label, value in zip(labels, values):
+            data.append({'항목': label, '지표': metric,
+                         RATIO: None if value is None or not base else round(value / base * 100, 1),
+                         '원래 값': value})
+    return {'type': 'chart', 'title': f'앞선 표 {table_number} · 지표 {len(series)}개 비교',
+            'data': data, 'x': '항목', 'y': RATIO, 'series': '지표',
+            'unit': f'% (기준: {basis})', 'basis': basis, 'chart_kind': kind}
+
+
 def table_artifacts(text, question):
     artifacts = []
-    for table_number, (header, rows) in enumerate(displayed_tables(text), 1):
+    kind = 'line' if '선그래프' in re.sub(r'\s+', '', question) else 'bar'
+    for table_number, (header, rows) in enumerate(main_tables(text), 1):
         measures, dimensions = [], [0]
         for index in range(1, len(header)):
             try:
@@ -51,14 +100,28 @@ def table_artifacts(text, question):
             except ValueError:
                 dimensions.append(index)
                 continue
-            if any(value is not None for value in values) and header[index] not in {'순위', '연도', '기준연도'}:
+            if is_rank(header[index]):
+                continue
+            if any(value is not None for value in values) and header[index] not in AXIS_COLUMNS:
                 measures.append((index, values))
             else:
                 dimensions.append(index)
+        # A column with one value for every row (e.g. the same variety) says nothing on the axis.
+        varying = [i for i in dimensions if len({row[i] for row in rows}) > 1]
+        dimensions = varying or dimensions[:1]
+        # Later text columns (notes such as a price basis) only matter if they tell rows apart.
+        for size in range(1, len(dimensions)):
+            if len({tuple(row[i] for i in dimensions[:size]) for row in rows}) == len(rows):
+                dimensions = dimensions[:size]
+                break
         labels = [' · '.join(row[i] for i in dimensions) for row in rows]
         # Preserve repeated categories as separate observations, never sum them.
         if len(set(labels)) != len(labels):
             labels = [f'{label} ({i}행)' for i, label in enumerate(labels, 1)]
+        if len(measures) > 1:
+            artifacts.append(combined_artifact(table_number, labels,
+                                               [(header[i], values) for i, values in measures], kind))
+            continue
         for index, values in measures:
             metric = header[index]
             unit = re.search(r'\(([^()]*)\)\s*$', metric)
@@ -66,7 +129,7 @@ def table_artifacts(text, question):
                 'type': 'chart', 'title': f'앞선 표 {table_number} · {metric}',
                 'data': [{'항목': label, metric: value} for label, value in zip(labels, values)],
                 'x': '항목', 'y': metric, 'unit': unit[1] if unit else '표에 표시된 단위',
-                'chart_kind': 'line' if '선그래프' in re.sub(r'\s+', '', question) else 'bar',
+                'chart_kind': kind,
             })
     return artifacts
 
@@ -81,9 +144,13 @@ def chart_previous_answer(agent, question):
         return agent.remember(question, '앞선 답변에 그래프로 표시할 수 있는 수치 표가 없습니다. 품종·연도·지표를 지정해 조회해 주세요.')
     agent.last_artifacts = artifacts
     agent.last_trace = [{'tool': '앞선 표를 그래프로 보기', 'seconds': 0, 'steps': [], 'success': True}]
+    combined = [a for a in artifacts if a.get('series')]
+    note = ('지표가 여러 개인 표는 단위가 달라도 비교할 수 있게 **그래프 하나에 비율(%)로** 합쳤습니다 '
+            f"(기준: {', '.join(dict.fromkeys(a['basis'] for a in combined))}). 원래 값은 그래프에 마우스를 올리거나 아래 표에서 확인하세요. "
+            if combined else '')
     text = result_first(
         f'앞선 답변의 표를 **그래프 {len(artifacts)}개**로 그렸습니다. 표에 표시한 항목·기간·수치를 그대로 사용했습니다.',
-        '서로 다른 지표는 그래프를 나누었습니다. 아래는 그래프의 기준이 된 앞선 답변입니다.\n\n' + previous['text'])
+        note + '아래는 그래프의 기준이 된 앞선 답변입니다.\n\n' + previous['text'])
     answer = agent.record('local_tool', question, {'tool': 'chart_from_table', 'basis_question': previous['question']}, text, previous['sources'])
     agent.results[-1]['validation'] = '앞선 성공 답변의 표시된 표 수치 재사용; 원자료 재조회·추가 집계 없음'
     return answer

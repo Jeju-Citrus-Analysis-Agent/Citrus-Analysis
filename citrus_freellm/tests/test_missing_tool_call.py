@@ -28,7 +28,7 @@ class MissingToolCallTests(unittest.TestCase):
         self.assertNotIn("999999", answer)
         self.assertEqual(agent.previous_request["metrics"], ["생산량_톤", "생산면적_ha"])
         agent.reset()
-        self.assertIn("명시", agent.ask("둘 다 알려줘"))
+        self.assertIn("함께 알려주세요", agent.ask("둘 다 알려줘"))
         self.assertEqual(client.complete.call_count, 4)
 
     def test_no_calls_for_every_turn_still_uses_fresh_evidence(self):
@@ -69,7 +69,7 @@ class MissingToolCallTests(unittest.TestCase):
         client = Mock()
         agent = Agent(client)
         with patch("citrus_freellm.agent.execute") as dispatch:
-            self.assertIn("명시", agent.ask("둘 다 알려줘"))
+            self.assertIn("함께 알려주세요", agent.ask("둘 다 알려줘"))
             dispatch.assert_not_called()
         client.complete.assert_not_called()
 

@@ -5,7 +5,7 @@ validation fail closed; no second model is treated as a factuality oracle.
 """
 import math
 import re
-from .presentation import result_first
+from .presentation import number as plain_number, result_first
 from .sources import source_citation
 
 SOURCE = "data/raw/public/fruit_production.csv"
@@ -13,7 +13,9 @@ QUALITY_NOTE = (
     "2017년 면적 통계에는 단절이 있습니다. 이를 데이터 누락으로 해석하지 않습니다. "
     "2016년 이전과 2017년 이후의 면적·면적당 지표를 직접 비교하지 않습니다."
 )
-CLARIFY = "품종 하나와 조회 연도를 명시해 주세요. 예: 2019년과 2020년 천혜향 생산량 비교."
+CLARIFY = "품종 하나, 연도, 볼 항목(생산량·면적)을 함께 알려주세요. 예: 2020년 천혜향 생산량"
+OFF_TOPIC = ("이 질문은 감귤 자료로 답하기 어려워요. 제주 감귤의 생산량·면적, 날씨, 품종별 단가, 경영비·소득, "
+             "수출·가공 자료와 분석 문서를 찾아 드릴 수 있어요. 아래 예시를 눌러 보세요.")
 UNSUPPORTED = "이 질문의 원인·미래값·실제 수익을 확정할 근거 또는 계산 조건이 부족합니다. 근거 없는 원인 단정·미래 예측·합계 분석은 지원하지 않습니다. 기존 분석의 연관성 설명과 입력 가정의 이익·손익분기 계산은 가능합니다."
 
 # Longest-first matching keeps 만감류하우스 distinct from 온주밀감하우스.
@@ -22,6 +24,24 @@ ALIASES = {
     "온주밀감하우스": ("온주밀감하우스", "하우스온주"),
     "온주밀감월동": ("온주밀감월동", "월동온주"),
 }
+# Follow-up phrasing the optional model interpreter used to handle (see intent.py).
+HARVEST = r"얼마나났|얼마나나왔|얼마나거뒀|수확량"
+PREVIOUS_YEAR = r"그전해|그이전해|이전해|^전해"
+METRIC_WORDS = {"생산량": "생산량_톤", "면적": "생산면적_ha"}
+EXCLUDE = re.compile(r"(생산량|면적)(?:만|은|는|을|를)?(?:빼고|빼줘|제외|말고)")
+
+
+def display_name(variety):
+    """'온주밀감노지' is the source table's label; readers know it as '노지온주'."""
+    from .tools import JASDC_NAMES
+    return JASDC_NAMES.get(variety, variety)
+
+
+def off_topic(question):
+    """Nothing in the question points at a statistic this assistant holds."""
+    return not re.search(r"(?:19|20)\d{2}|생산|면적|수확|얼마나|온주|한라봉|천혜향|레드향|황금향|카라향|만감|과수|"
+                         r"날씨|기온|강수|가격|단가|소득|경영비|수출|가공|출하|문서|자료|데이터|그전해|두해|빼고|제외",
+                         re.sub(r"\s+", "", question))
 
 
 def request_for(question, previous=None):
@@ -51,9 +71,20 @@ def request_for(question, previous=None):
         metrics = ["생산량_톤"]
     if re.search(r"둘다|둘모두", compact):
         metrics = ["생산량_톤", "생산면적_ha"]
+    if re.search(HARVEST, compact) and "생산량_톤" not in metrics:
+        metrics.append("생산량_톤")
+    # "면적만 빼고" names 면적 but asks for everything else, so it overrides the mentions above.
+    removed = {METRIC_WORDS[word] for word in EXCLUDE.findall(compact)}
+    if removed:
+        base = (previous or {}).get("metrics") or ["생산량_톤", "생산면적_ha"]
+        metrics = [m for m in base if m not in removed]
+        if not metrics:
+            return None, "빼고 나면 보여줄 항목이 없습니다. 생산량과 면적 중 무엇을 볼지 알려주세요."
+    previous_year = bool(re.search(PREVIOUS_YEAR, compact))
     if not explicit_years and re.search(r"올해|금년|내년|최근|최신|작년|지난해", compact):
         return None, "상대적인 기간 대신 조회할 기준 연도를 숫자로 명시해 주세요."
-    if not varieties and not years and not metrics:
+    follows = previous and (previous_year or re.search(r"두해|두연도", compact))
+    if not varieties and not years and not metrics and not follows:
         return None, CLARIFY
     variety = next(iter(varieties), None)
     if previous:
@@ -64,7 +95,12 @@ def request_for(question, previous=None):
     metrics = metrics or ["생산량_톤"]
     if not variety or not years:
         return None, CLARIFY
-    if re.search(r"전년|작년|지난해", compact):
+    if previous_year:
+        if len(set(years)) != 1:
+            return None, "어느 해의 전해인지 기준 연도 하나를 알려주세요. 예: 2020년 천혜향 생산량의 그 전해"
+        anchor = years[0]
+        years = [anchor - 1, anchor] if re.search(r"비교|대비|차이|증감", compact) else [anchor - 1]
+    elif re.search(r"전년|작년|지난해", compact):
         if len(set(years)) != 1:
             return None, "전년 비교의 기준 연도 하나를 명시해 주세요."
         years = [years[0] - 1, years[0]]
@@ -75,7 +111,9 @@ def request_for(question, previous=None):
         return None, "조회 기간은 시작 연도부터 종료 연도 순서로 입력해 주세요."
     if is_range and len(years) > 2:
         return None, "기간 조회는 시작 연도와 종료 연도 두 개로 지정해 주세요."
-    if not explicit_years and previous and not is_range:
+    if previous_year:
+        mode = "selected"
+    elif not explicit_years and previous and not is_range:
         mode = previous.get("mode", "selected")
     else:
         mode = "range" if is_range else "selected"
@@ -100,7 +138,9 @@ def validate_evidence(data, request):
     from jeju_citrus.data.clean_quality import FRUIT_CATEGORY_MAP
     if not isinstance(data, dict) or data.get("error"):
         raise ValueError("조회 실패")
-    if data.get("request") != request or data.get("source") != SOURCE:
+    from .tools import JASDC_SOURCE, uses_jasdc
+    jasdc = uses_jasdc(request["variety"], request["start_year"], request["end_year"])
+    if data.get("request") != request or data.get("source") != (JASDC_SOURCE if jasdc else SOURCE):
         raise ValueError("조회 조건 또는 출처 불일치")
     if data.get("units") != {"생산면적_ha": "ha", "생산량_톤": "톤"}:
         raise ValueError("단위 불일치")
@@ -114,7 +154,7 @@ def validate_evidence(data, request):
             raise ValueError("기간 또는 중복 오류")
         if row["품종"] != request["variety"]:
             raise ValueError("품종 불일치")
-        if row["집계수준"] != FRUIT_CATEGORY_MAP[request["variety"]][1]:
+        if not jasdc and row["집계수준"] != FRUIT_CATEGORY_MAP[request["variety"]][1]:
             raise ValueError("집계수준 불일치")
         years.add(year)
         for metric in ("생산량_톤", "생산면적_ha"):
@@ -126,20 +166,21 @@ def validate_evidence(data, request):
         raise ValueError("누락 연도 불일치")
     if len({r["집계수준"] for r in rows}) > 1:
         raise ValueError("집계수준 혼합")
-    from .reference_check import verify_reference
-    verify_reference(data, request)
+    from .reference_check import verify_reference, verify_jasdc_reference
+    (verify_jasdc_reference if jasdc else verify_reference)(data, request)
     return sorted(rows, key=lambda r: r["연도"])
 
 
-def number(value):
-    return "자료 없음" if value is None else f"{value:,.2f}".rstrip("0").rstrip(".")
+def number(value, signed=False):
+    return "자료 없음" if value is None else plain_number(value, signed)
 
 
 def render(data, request, question):
     rows = validate_evidence(data, request)
     compact = re.sub(r"\s+", "", question)
+    area_label = data.get("area_label", "생산면적")
     definitions = {"생산량_톤": ("생산량_톤", "생산량", "톤"),
-                   "생산면적_ha": ("생산면적_ha", "생산면적", "ha")}
+                   "생산면적_ha": ("생산면적_ha", area_label, "ha")}
     keys = request.get("metrics")
     if keys is None:
         keys = (["생산량_톤"] if "면적" not in compact or "생산량" in compact else [])
@@ -149,7 +190,7 @@ def render(data, request, question):
     display_years = request.get("years", list(range(request["start_year"], request["end_year"] + 1)))
     title = (f"{min(display_years)}~{max(display_years)}년" if request.get("mode") == "range" and len(display_years) > 1
              else ", ".join(map(str, display_years)) + "년")
-    lines = [f"{request['variety']} · {title}", ""]
+    lines = [f"{display_name(request['variety'])} · {title}", ""]
     area_terms = request.get("requested_area_terms", [])
     if area_terms and "생산면적_ha" in keys:
         lines += ["요청 지표: " + "·".join(area_terms) + ". 해당 구분의 통계는 현재 조회 자료에서 확인할 수 없습니다.",
@@ -172,31 +213,34 @@ def render(data, request, question):
                 continue
             delta = after - before
             percent = f"{delta / before * 100:+.2f}%" if before else "기준값이 0이어서 계산하지 않음"
-            lines.append(f"\n{label} 변화: {delta:+,.2f} {unit} / 변화율: {percent}")
+            lines.append(f"\n{label} 변화: {number(delta, True)} {unit} / 변화율: {percent}")
     displayed_missing = sorted(set(data["missing_years"]) & set(display_years))
     if displayed_missing:
         lines.append("\n자료 없는 연도: " + ", ".join(map(str, displayed_missing)) + ". 보간하거나 추정하지 않았습니다.")
     if any(key == "생산면적_ha" for key, _, _ in metrics):
         lines.append("\n품질 주의: " + QUALITY_NOTE)
-    lines.append("\n출처: " + source_citation({'path': SOURCE}))
+    if data["source"] != SOURCE:
+        lines.append("\n2015~2020년 밖의 연도를 포함해 제주농산물수급관리센터 품종별 통계로 답했습니다. "
+                     "면적은 이 통계의 재배면적입니다. 2015~2020년만 물으면 제주데이터허브 과수 통계로 답합니다.")
+    lines.append("\n출처: " + source_citation({'path': data["source"]}))
     summary = []
     for key, label, unit in metrics:
         points = [(year, by_year.get(year, {}).get(key)) for year in display_years]
         present = [(year, value) for year, value in points if value is not None]
         if not present:
-            summary.append(f"{request['variety']} {label}은 요청한 연도의 자료가 없습니다.")
+            summary.append(f"{display_name(request['variety'])} {label}은 요청한 연도의 자료가 없습니다.")
         elif len(present) == 1:
             year, value = present[0]
-            summary.append(f"{year}년 {request['variety']} {label}은 **{number(value)}{unit}**입니다.")
+            summary.append(f"{year}년 {display_name(request['variety'])} {label}은 **{number(value)}{unit}**입니다.")
         else:
             begin, end = present[0], present[-1]
-            sentence = f"{request['variety']} {label}은 {begin[0]}년 **{number(begin[1])}{unit}**, {end[0]}년 **{number(end[1])}{unit}**입니다."
+            sentence = f"{display_name(request['variety'])} {label}은 {begin[0]}년 **{number(begin[1])}{unit}**, {end[0]}년 **{number(end[1])}{unit}**입니다."
             if key == '생산면적_ha' and begin[0] < 2017 <= end[0]:
                 sentence += ' 2017년 통계 기준이 달라 전후 증감은 비교하지 않습니다.'
             elif not displayed_missing and len(present) == len(display_years):
                 delta = end[1] - begin[1]
                 percentage = f" ({delta / begin[1] * 100:+.2f}%)" if begin[1] else ''
-                sentence += f' 변화량은 **{delta:+,.2f}{unit}{percentage}**입니다.'
+                sentence += f' 변화량은 **{number(delta, True)}{unit}{percentage}**입니다.'
             summary.append(sentence)
     if area_terms and '생산면적_ha' in keys:
         summary.insert(0, '요청한 수확·재배면적과 같은 정의인지 확인되지 않아 아래 생산면적은 참고값입니다.')

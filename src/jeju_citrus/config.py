@@ -36,3 +36,9 @@ JEJU_REGION_NAME = "제주특별자치도"
 JASDC_RAW_DIR = RAW_DIR / "jasdc"
 JASDC_MANUAL_DIR = RAW_DIR / "jasdc_manual"  # 화면 복사·엑셀 수동 수집
 WEATHER_DIR = EXTERNAL_DIR / "weather"  # 기상청 ASOS 일자료 (asos_daily_*.csv, cp949)
+
+# 경영비·물가 보정용 외부 자료 (data/external/README_cost_cpi.md 참고)
+STANDARD_INCOME = EXTERNAL_DIR / "cost" / "standard_income.csv"  # 감귤 표준소득표 (2017·2022~2024년산)
+CPI_ANNUAL = EXTERNAL_DIR / "cpi" / "cpi_annual.csv"  # 연평균 CPI (2020=100)
+# KOSIS 농가판매 및 구입가격조사 > 농가구입가격지수 (2020=100, 분기) 원본 다운로드
+FARM_PURCHASE_INDEX_RAW = EXTERNAL_DIR / "cpi" / "kosis_farm_purchase_price_quarterly.csv"

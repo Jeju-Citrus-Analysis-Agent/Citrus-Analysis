@@ -24,13 +24,18 @@ python -m streamlit run citrus_freellm/web.py --server.address 127.0.0.1 --brows
 
 ## 🔍 주요 발견
 
-[`01_eda`](notebooks/01_eda.ipynb) · [`02_trend_weather_timing`](notebooks/02_trend_weather_timing.ipynb) 결과 요약입니다.
+[`01_eda`](notebooks/01_eda.ipynb) · [`02_trend_weather_timing`](notebooks/02_trend_weather_timing.ipynb) · [`03_cost_inflation`](notebooks/03_cost_inflation.ipynb) · [`04_breakeven_decomposition`](notebooks/04_breakeven_decomposition.ipynb) 결과 요약입니다.
 
 | 주제 | 발견 | 근거 |
 | --- | --- | --- |
 | 수급과 가격 | 생산량이 1% 늘면 단가가 **2~3% 하락**합니다(탄력성 -2.2, 최근 10년 -2.9). 그래서 많이 생산된 해에는 조수입이 오히려 줄어듭니다. | 노지온주 22년 |
 | 장기 추세 | 노지온주는 재배면적 **-29%**, 단가 **2배**, ha당 조수입 **2.2배** (2004년 → 2025년, 명목 가격) | 22년 |
+| 물가 보정 | 생활물가(CPI)로 보정하면 노지온주 실질 단가는 2004→2025 **+27%** 올랐습니다. 하지만 같은 기간 농사 비용이 더 빨리 올라서(노무비 2.9배, 재료비 2.2배), **노지 경영비 물가로 보정하면 2017→2025 단가 −5%, ha당 조수입 −5%로 오히려 하락**입니다. 2017년 면적 단절(Q9) 이후 기준으로 만감류 ha당 실질 매출은 늘었고 **하우스온주만 줄었습니다(-28%)**. | 22년, CPI·농가구입가격지수 |
 | 품종 | 최근 3년 ha당 매출은 하우스온주가 노지의 **4.6배**이고, 천혜향 2.9배, 월동온주·레드향 2.4배 순입니다. (경영비 미반영) | 8개 품종 |
+| 경영비 | 표준소득표(2016~2024년산 9년)에서 경영비를 빼면 **하우스온주가 9년 중 6년 소득 1위**지만 실질 소득은 계속 줄었습니다(159→96백만원/ha). **천혜향은 9년 모두 2위 안**이고, **노지온주는 9년 모두 꼴찌**입니다(2019·2022년산은 생산비 차감 시 적자). 단, 만감류는 표준표 총수입이 제주 평균의 1.1~3.7배라 평균 농가 소득으로 읽으면 안 됩니다. | 9년 |
+| 손익분기 | 노지온주 표준 농가 단가는 생산비 손익분기 단가에 거의 붙어 있습니다(0.96~1.35배). 제주 평균 매출로 보면 **2019~2022년산 4년 연속 생산비 적자**였고, 2026년 비용 수준에서 **제주 생산량이 약 47만 톤(39~56만 톤)을 넘으면** 평균 농가가 생산비 적자입니다. | 9년 + 가격 모델 |
+| 소득 변화 원인 | 2016~18 → 2022~24년산 실질 소득: 노지는 가격 상승(+108만원/10a)과 수량 감소(−116)가 상쇄되고 비용 증가만 남았고, **하우스는 가격·수량·비용 모두 악화**(−333), 천혜향·한라봉은 **수확량 증가**로 늘었습니다. | 5개 품종 |
+| 표준표 vs 제주 평균 | 만감류는 표준 농가 총수입이 제주 평균의 1.6~1.8배인데 **대부분 수확량 차이**입니다(천혜향 약 90%). 천혜향 수량 비가 2017년에 0.98 → 1.89로 뛴 것은 **어린 과원이 재배면적에 포함**된 Q9 단절과 맞습니다. | 9년 |
 | 기상 | **여름이 더운 해일수록 ha당 생산량은 적고 단가는 높았습니다.** 추세를 제거한 뒤 여름 평균기온과 단가의 상관은 +0.83입니다. | 22년, 상관 |
 | 출하 시기 | **10월 조기 출하는 5개 시즌 모두 12월보다 쌌습니다**(0.67~1.01배). 반면 2월 출하의 이득은 해마다 1.0~1.8배로 제각각이었고, **생산량으로는 설명되지 않았습니다**(2023·2025년산은 생산량이 거의 같은데 1.79배 vs 1.01배). | 5개 시즌 일별 |
 | 2026년산 | 시즌 초반(9/1~11/8) 실측 결과 출하량은 전년보다 **+33%**, 도매가는 **-7%** 입니다. 폭염 기반 모델도 -7%를 예측하지만, 백테스트 오차가 '전년 단가 그대로'와 비슷해서(16.1% vs 16.9%) **근거는 시장 신호뿐**입니다. | 실측 (모델은 참고) |
@@ -48,17 +53,20 @@ jeju_citrus/
 │   │   ├── jasdc/            #   jasdc 자동 수집 원본 (git 제외)
 │   │   └── jasdc_manual/     #   jasdc 수동 다운로드 (git 제외)
 │   │       ├── price_daily/        # 일별 총괄가격 엑셀 (price_whole_*.xlsx / .txt)
-│   │       └── price_monthly_box/  # 월별 상자규격 가격 (price_monthly_box_*.txt)
+│   │       ├── price_monthly_box/  # 월별 상자규격 가격 (price_monthly_box_*.txt)
+│   │       └── reports/            # 감귤유통처리 분석 보고서 PDF (표준소득표 추출용)
 │   ├── interim/              # 품질 이슈 정제 결과 *_clean.csv (코드로 재생성, git 제외)
 │   ├── processed/            # 분석용 최종 데이터
-│   └── external/             # 외부 데이터 (weather/: 기상청 ASOS 등)
+│   └── external/             # 외부 데이터 (weather/: 기상청 ASOS, cost/: 표준소득표, cpi/: 소비자물가·농가구입가격지수)
 │
 ├── docs/
 │   └── requirements_spec.md  # 요구사항 정의서 (데이터 명세, 품질 이슈, 로드맵)
 │
 ├── notebooks/                # 분석 노트북 (번호_주제.ipynb)
 │   ├── 01_eda.ipynb          #   탐색적 데이터 분석
-│   └── 02_trend_weather_timing.ipynb  # 장기 추세·기상 영향·출하 시기
+│   ├── 02_trend_weather_timing.ipynb  # 장기 추세·기상 영향·출하 시기
+│   ├── 03_cost_inflation.ipynb        # 경영비 반영·물가 보정
+│   └── 04_breakeven_decomposition.ipynb # 손익분기·소득 변화 분해·품종별 경영비 물가
 │
 ├── reports/
 │   └── figures/              # 저장된 그래프 (git 제외)
@@ -67,6 +75,7 @@ jeju_citrus/
 │   ├── make_dataset.py       #   raw → processed·interim 전체 재생성
 │   ├── check_quality.py      #   데이터 품질 이슈(Q3~Q11) 확인 근거 출력
 │   ├── collect_jasdc.py      #   jasdc 수집 → 정제
+│   ├── extract_standard_income.py # 감귤유통처리 분석 PDF → 표준소득표 CSV (pypdf 필요)
 │   └── run_eda.py            #   데이터 로드 확인용 간단 EDA
 │
 ├── src/jeju_citrus/          # 재사용 코드 (패키지)
@@ -120,6 +129,10 @@ jeju_citrus/
 | processed | `citrus_price_daily.csv` | 노지온주 일별 출하량·평균가 (도매/직거래) | 2021-10 ~ 2026-11 (5.2개 시즌) |
 | processed | `citrus_price_monthly_box.csv` | 노지온주 월별·상자규격별 도매가격 | 2024 시즌 |
 | external | `weather/asos_daily_*.csv` | [기상청 ASOS 일자료](https://data.kma.go.kr/data/grnd/selectAsosRltmList.do?pgmNo=36) 원본 (cp949, 10년 단위 분할) | 2004-01 ~ 2026-11 |
+| external | `cost/standard_income_items.csv` | 표준소득표 경영비 세부 항목 15개 (원/10a). 품종별 경영비 물가지수 가중치용 | 2017·2022~2024년산 |
+| external | `cost/standard_income.csv` | 감귤 표준소득표 (원·만원/10a): 총수입·경영비·소득·생산비·순수익·자가노동 (`scripts/extract_standard_income.py`로 PDF + 판독본 `standard_income_transcribed.csv`에서 생성) | 2016~2024년산 |
+| external | `cpi/cpi_annual.csv` | 연평균 소비자물가지수 (2020=100), `검증상태` 컬럼 포함 | 2004 ~ 2025 |
+| external | `cpi/kosis_farm_purchase_price_quarterly.csv` | KOSIS 농가구입가격지수 (2020=100, 분기, 항목 100개). `load_farm_purchase_index()`로 연평균 | 2005 Q1 ~ 2026 Q3 |
 | processed | `weather_daily.csv` | 제주·고산·성산·서귀포 일별 기온·강수·습도·일조·일사 | 2004-01 ~ 2026-11 |
 | processed | `weather_monthly.csv` | 지점별 월 요약 + 폭염·열대야·영하·호우 일수 | 2004-01 ~ 2026-11 |
 | interim | `varieties_summary_clean.csv` | 전년비 → 증감률로 바로잡은 품종별 유통 비교 (Q3) | 2024~2025 |
@@ -190,6 +203,7 @@ python -m ipykernel install --user --name jeju_citrus --display-name "Python 3.1
 python scripts/collect_jasdc.py  # jasdc 데이터 수집·정제 (최초 1회)
 python scripts/make_dataset.py   # 모든 원본(raw/external) → processed·interim 재생성
 python scripts/check_quality.py  # 품질 이슈 확인 근거 출력
+python scripts/extract_standard_income.py  # 표준소득표 PDF → data/external/cost/ (pip install pypdf)
 python scripts/run_eda.py        # 데이터 로드 확인
 pytest                           # 테스트
 ruff check .                     # 코드 스타일 검사
@@ -220,7 +234,7 @@ fruit = load_raw("fruit_production.csv")                  # 인코딩 자동 처
 | 단계 | 내용 | 상태 |
 | --- | --- | --- |
 | Phase 1 | EDA, 데이터 품질 이슈 파악, 장기 데이터(2004~2025) 확보 | ✅ |
-| Phase 2 | 정제 파이프라인(품질 이슈 Q3~Q11 ✅), 가격·수익성 심화 분석 (경영비 반영 ⏳) | 🔄 진행 중 |
+| Phase 2 | 정제 파이프라인(품질 이슈 Q3~Q11 ✅), 가격·수익성 심화 분석 (경영비 9년·물가 보정 ✅) | 🔄 진행 중 |
 | Phase 3 | 기상 데이터 결합·상관분석 ✅, 병해충 데이터 ⏳ | 🔄 |
 | Phase 4 | 예측 모델 (질의응답·리포트 에이전트는 담당 외) | ⏳ |
 

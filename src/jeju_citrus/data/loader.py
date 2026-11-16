@@ -67,3 +67,59 @@ def load_processed(name: str) -> pd.DataFrame:
         available = ", ".join(PROCESSED_DATASETS)
         raise KeyError(f"알 수 없는 데이터셋: {name!r} (사용 가능: {available})")
     return pd.read_csv(PROCESSED_DIR / f"{name}.csv", encoding=DEFAULT_ENCODING)
+
+
+def load_standard_income(year: int | None = None) -> pd.DataFrame:
+    """감귤 표준소득표 (원·만원/10a). ``year``를 주면 그 산지연도만 돌려준다.
+
+    ``python scripts/extract_standard_income.py``로 보고서 PDF에서 생성한다.
+    """
+    from jeju_citrus.config import STANDARD_INCOME
+
+    df = pd.read_csv(STANDARD_INCOME, encoding=DEFAULT_ENCODING)
+    if year is not None:
+        df = df[df["산지연도"] == year].reset_index(drop=True)
+    return df
+
+
+def load_cpi() -> pd.DataFrame:
+    """연평균 소비자물가지수 (2020=100)."""
+    from jeju_citrus.config import CPI_ANNUAL
+
+    return pd.read_csv(CPI_ANNUAL, encoding=DEFAULT_ENCODING)
+
+
+def load_farm_purchase_index(freq: str = "annual") -> pd.DataFrame:
+    """KOSIS 농가구입가격지수(2020=100)를 항목별 열로 돌려준다.
+
+    - ``freq="quarter"``: 행 = 분기(``"2025.4/4"``), 열 = 항목
+    - ``freq="annual"``: 4개 분기가 모두 있는 연도만, 분기 단순평균. 공식 연평균은 계절 가중치를
+      쓰므로 0.1 정도 다를 수 있다 (2024년 120.2 vs 공표 120.1, 2025년 121.6 일치).
+
+    원본에서 같은 이름이 두 번 나오는 항목(``노무비``: 대분류와 소분류, 값 동일)은 첫 행만 쓴다.
+    ``-``(미조사)는 NaN.
+    """
+    from jeju_citrus.config import FARM_PURCHASE_INDEX_RAW
+
+    raw = pd.read_csv(FARM_PURCHASE_INDEX_RAW, encoding=DEFAULT_ENCODING).iloc[1:]  # 2행: 반복 제목
+    raw = raw.rename(columns={raw.columns[0]: "항목"}).drop_duplicates("항목")
+    quarter = raw.set_index("항목").T.apply(pd.to_numeric, errors="coerce")
+    quarter.index.name = "분기"
+    quarter.columns.name = None
+    if freq == "quarter":
+        return quarter
+    if freq != "annual":
+        raise ValueError(f"freq는 'annual' 또는 'quarter': {freq!r}")
+    year = quarter.index.str[:4].astype(int)
+    n_quarters = pd.Series(year).value_counts()
+    annual = quarter.groupby(year).mean()
+    annual = annual.loc[sorted(n_quarters[n_quarters == 4].index)]
+    annual.index.name = "연도"
+    return annual
+
+
+def load_standard_income_items() -> pd.DataFrame:
+    """표준소득표 경영비 세부 항목 (원/10a). 텍스트 추출이 되는 2017·2022~2024년산만."""
+    from jeju_citrus.config import STANDARD_INCOME
+
+    return pd.read_csv(STANDARD_INCOME.parent / "standard_income_items.csv", encoding=DEFAULT_ENCODING)

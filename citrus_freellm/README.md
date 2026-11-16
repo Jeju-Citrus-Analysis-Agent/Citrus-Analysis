@@ -62,7 +62,8 @@ python -m pip install -r citrus_freellm/requirements-ui.txt
 - **숫자·단위 도움말:** 질문에 답할 때 큰 숫자를 ‘만·억’ 단위로 풀어 보여주고,
   해당 답변에 쓰인 톤·ha·원/kg 등의 단위만 함께 설명합니다. 원래 수치와 단위는 유지합니다.
 - 사이드바에는 대화·리포트, 사용 안내, 카테고리별 예시 질문을 제공합니다.
-리포트 만들기를 누르면 HTML·Markdown·JSON으로 다운로드할 수 있습니다.
+리포트 만들기를 누르면 Markdown과 PDF로 다운로드할 수 있습니다. 출처·파일 버전(sha256)은 리포트 끝의 ‘출처 기록’에 들어갑니다.
+PDF는 한글 글꼴(나눔고딕·맑은 고딕 자동 탐색, 또는 `CITRUS_PDF_FONT`)이 필요하며, 없으면 Markdown만 만듭니다.
 리포트에는 그래프의 수치 표가 포함됩니다.
 
 ## 자료와 지원 범위
@@ -85,16 +86,28 @@ python -m pip install -r citrus_freellm/requirements-ui.txt
 - 인터넷 검색은 키 없는 공공 웹 검색을 이용하며 공공기관 도메인만 표시합니다.
   검색 서비스 상태에 따라 실패할 수 있고, 그때는 직접 검색 링크를 제공합니다.
 - 문서 검색은 README, docs, 공개 분석 근거의 Markdown만 대상으로 합니다.
+- 경영비·소득은 표준소득표(표본 농가, 10a당) 기준입니다. 소득은 순이익이 아니며, 만감류는 제주 평균 농가보다 높게 나옵니다.
+- 표준소득표·CPI 파일은 jasdc 간행물 자료라 Git에 없습니다. 팀 공유 data 폴더가 있어야 조회가 동작하고, 없으면 해당 테스트는 건너뜁니다.
 
 `CITRUS_REPO_PATH`로 참조 저장소 위치를 지정할 수 있습니다.
 원본 CSV는 읽기만 하며 사용자 질문으로 코드나 임의의 파일 경로를 실행하지 않습니다.
 `.env`, 로그, 리포트와 가상환경은 Git에서 제외됩니다.
 모델 통신 모듈은 이전 코드와의 호환을 위해 남아 있으나 웹·CLI에서는 사용하지 않습니다.
 
+## 경영비·물가 보정·손익분기 (노트북 03·04)
+
+- 숫자 조회: 표준소득표(`data/external/cost/standard_income.csv`, 2016~2024년산)의 경영비·소득·생산비·순수익,
+  품종 순위, CPI 실질화, 손익분기 단가(경영비÷수량, 생산비÷수량), 품종별 CPI 실질 단가. 조회 때마다 소득·순수익·단위를 검산합니다.
+- 분석 설명: 노트북 03·04의 결론을 고정 커밋 발췌(`knowledge/sources/cost_analysis.md`)와 카드 6개로 제공합니다.
+  주제: 경영비를 뺀 품종별 소득, 물가 보정, 손익분기 단가·생산량(약 47만 톤), 소득 변화 분해, 표준표와 제주 평균의 차이, 품종별 경영비 물가.
+- 질문 예시는 [도구별 쉬운 질문](docs/TOOL_QUESTIONS.md#경영비물가-보정손익분기-질문-노트북-0304)에 있습니다.
+
 ## 검증
 
 ```powershell
 .\.venv-agent\Scripts\python.exe -m unittest citrus_freellm.tests.test_local_tools citrus_freellm.tests.test_web -v
+# 경영비·손익분기 질문 16개 오프라인 평가 (모델·네트워크 없음, 결과는 reports/local_evaluation_latest.json)
+.\.venv-agent\Scripts\python.exe -m citrus_freellm.evaluate --local
 ```
 
 [기존 계산·검증 설계](docs/DESIGN.md)

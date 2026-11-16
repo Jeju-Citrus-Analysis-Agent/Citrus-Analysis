@@ -76,5 +76,57 @@
       "호우일수":{"unit":"일","definition":"일강수량 80mm 이상인 날 수 (근사)","status":"생성 코드 확인"},
       "강수일수":{"unit":"일","definition":"일강수량 0mm 초과인 날 수","status":"생성 코드 확인"}
     }
+  },
+  "standard_income": {
+    "path": "data/external/cost/standard_income.csv", "title": "감귤 표준소득표 (경영비·소득·생산비)", "time_column": "산지연도", "time_kind": "year", "documented_period": "2016~2024년산", "grain": "산지연도 × 대응품종. 표본 농가 10a(1,000㎡)당 값. 레드향은 2020년산부터, 황금향은 2022년산부터", "keys": ["산지연도", "대응품종"], "chat_support": "경영비·소득·생산비·순수익 조회, 품종 순위, CPI 실질화, 손익분기 단가 계산 지원", "origin": "제주농산물수급관리센터 「감귤유통처리 분석」 참고자료의 표준소득 분석표. scripts/extract_standard_income.py로 PDF 텍스트와 쪽 이미지 판독본을 합쳐 생성", "references": ["data/external/README_cost_cpi.md", "scripts/extract_standard_income.py", "notebooks/03_cost_inflation.ipynb §1", "notebooks/04_breakeven_decomposition.ipynb §1~3"], "quality": ["표본 농가 조사값이며 제주 평균 농가가 아님. 만감류 총수입은 제주 평균의 1.1~3.7배", "소득은 총수입 − 경영비로 순이익이 아님", "2016·2018~2021년산은 쪽 이미지 판독값. 검산에 쓰이지 않는 수량·단가·자가노동시간은 오독 가능성 있음", "2023년산은 품종명 글꼴이 깨져 표 순서로 품종을 붙임", "시설감귤 → 하우스온주, 하우스월동감귤 → 월동온주 대응. 가온 여부는 확인 안 됨"],
+    "fields":{
+      "산지연도":{"unit": "년", "definition": "감귤 생산 연도(산지연도)", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "원문분류":{"unit": null, "definition": "보고서 표 제목의 품종 분류(노지감귤·시설감귤 등)", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "대응품종":{"unit": null, "definition": "프로젝트 품종명으로 대응시킨 값", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "분류근거":{"unit": null, "definition": "원문분류를 붙인 근거(제목·표 순서·쪽 이미지 판독)", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "총수입_원_10a":{"unit": "원/10a", "definition": "주산물 + 부산물 수입", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "중간재비_원_10a":{"unit": "원/10a", "definition": "경영비 중 중간재 항목 합", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "경영비_원_10a":{"unit": "원/10a", "definition": "현금 지출 비용(중간재비 + 임차료·고용노동비 등)", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "생산비_원_10a":{"unit": "원/10a", "definition": "경영비 + 자가노동비 + 자본용역비", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "소득_원_10a":{"unit": "원/10a", "definition": "총수입 − 경영비. 자가노동·자기자본 보상이 남아 있어 순이익 아님", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "자가노동시간_10a":{"unit": "시간/10a", "definition": "가족 노동 투입 시간", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "자가노동비_원_10a":{"unit": "원/10a", "definition": "자가노동시간의 평가액", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "수량_kg_10a":{"unit": "kg/10a", "definition": "표본 농가 10a당 수확량", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "단가_원_kg":{"unit": "원/kg", "definition": "표본 농가 판매 단가", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "PDF쪽":{"unit": "쪽", "definition": "보고서 PDF 쪽 번호", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "비고":{"unit": null, "definition": "원문 오기 정정 등 메모", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "순수익_원_10a":{"unit": "원/10a", "definition": "총수입 − 생산비", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "총수입_만원_10a":{"unit": "만원/10a", "definition": "총수입 ÷ 10,000", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "경영비_만원_10a":{"unit": "만원/10a", "definition": "경영비 ÷ 10,000", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "소득_만원_10a":{"unit": "만원/10a", "definition": "소득 ÷ 10,000", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "생산비_만원_10a":{"unit": "만원/10a", "definition": "생산비 ÷ 10,000", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "순수익_만원_10a":{"unit": "만원/10a", "definition": "순수익 ÷ 10,000", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "출처":{"unit": null, "definition": "보고서 이름", "status": "README_cost_cpi.md·추출 코드 확인"}
+    }
+  },
+  "cpi_annual": {
+    "path": "data/external/cpi/cpi_annual.csv", "title": "연평균 소비자물가지수 (2020=100)", "time_column": "연도", "time_kind": "year", "documented_period": "2004~2025", "grain": "연도", "keys": ["연도"], "chat_support": "표준소득표·단가의 CPI 실질화에 사용", "origin": "2015~2025 국가지표체계 소비자물가 총지수, 2004~2014 제3자 표를 공식 상승률과 대조", "references": ["data/external/README_cost_cpi.md", "src/jeju_citrus/features.py: deflate"], "quality": ["소비자 생활물가이며 농가 생산비 물가가 아님. 생산비 물가는 KOSIS 농가구입가격지수(kosis_farm_purchase_price_quarterly.csv) 참고", "2004~2014는 제3자 표"],
+    "fields":{
+      "연도":{"unit": "년", "definition": "달력 연도", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "CPI_2020_100":{"unit": "지수(2020=100)", "definition": "연평균 소비자물가 총지수", "status": "README_cost_cpi.md·추출 코드 확인"},
+      "검증상태":{"unit": null, "definition": "공식 값과의 대조 결과", "status": "README_cost_cpi.md·추출 코드 확인"}
+    }
+  },
+  "citrus_production_yearly": {
+    "path": "data/processed/citrus_production_yearly.csv", "title": "8개 품종 재배면적·생산량·조수입", "time_column": "연도", "time_kind": "year", "documented_period": "2004~2025", "grain": "품종 × 연도", "keys": ["품종", "연도"], "chat_support": "품종별 실질 단가(CPI 보정) 조회 지원. 기타 수치는 분석 설명으로 안내", "origin": "제주농산물수급관리센터 감귤 생산정보 수집·정제", "references": ["README.md: 데이터 목록", "src/jeju_citrus/data/clean_jasdc.py"], "quality": ["2017년 재배면적 통계 단절(Q9): 면적·ha당 지표를 2017년 전후로 이어 붙이지 않음", "단가 = 조수입 ÷ 처리량. 단가_검증 '확인불가' 연도는 제외 권장"],
+    "fields":{
+      "품종":{"unit": null, "definition": "감귤 품종", "status": "README·정제 코드 확인"},
+      "품종그룹":{"unit": null, "definition": "온주·만감류 등 그룹", "status": "README·정제 코드 확인"},
+      "연도":{"unit": "년", "definition": "생산 연도", "status": "README·정제 코드 확인"},
+      "재배면적_ha":{"unit": "ha", "definition": "재배면적. 2017년 통계 단절", "status": "README·정제 코드 확인"},
+      "생산량_톤":{"unit": "톤", "definition": "생산량", "status": "README·정제 코드 확인"},
+      "조수입_백만원":{"unit": "백만원", "definition": "조수입(총 매출)", "status": "README·정제 코드 확인"},
+      "재배농가_호":{"unit": "호", "definition": "재배 농가 수", "status": "README·정제 코드 확인"},
+      "단가_원_kg":{"unit": "원/kg", "definition": "조수입 ÷ 처리량", "status": "README·정제 코드 확인"},
+      "ha당_생산량_톤":{"unit": "톤/ha", "definition": "생산량 ÷ 재배면적", "status": "README·정제 코드 확인"},
+      "ha당_조수입_백만원":{"unit": "백만원/ha", "definition": "조수입 ÷ 재배면적", "status": "README·정제 코드 확인"},
+      "처리량_추정_톤":{"unit": "톤", "definition": "조수입 ÷ 단가로 추정한 처리량", "status": "README·정제 코드 확인"},
+      "단가_검증":{"unit": null, "definition": "단가가 조수입 ÷ 생산량과 맞는지(일치·처리량기준·확인불가)", "status": "README·정제 코드 확인"}
+    }
   }
 }

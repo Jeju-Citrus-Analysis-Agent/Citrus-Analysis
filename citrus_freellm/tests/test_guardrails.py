@@ -76,9 +76,9 @@ class GuardrailTests(unittest.TestCase):
                 render(data, REQUEST, QUESTION)
 
     def test_missing_years_not_invented(self):
-        request = dict(REQUEST, end_year=2021)
-        answer = render(production(**request), request, "2019~2021 천혜향 생산량")
-        self.assertIn("| 2021 | 자료 없음 |", answer)
+        request = dict(REQUEST, end_year=2026)
+        answer = render(production(**request), request, "2019~2026 천혜향 생산량")
+        self.assertIn("| 2026 | 자료 없음 |", answer)
         self.assertNotIn("변화율:", answer)
 
     def test_area_discontinuity(self):

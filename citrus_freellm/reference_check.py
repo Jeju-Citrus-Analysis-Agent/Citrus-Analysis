@@ -52,3 +52,34 @@ def verify_reference(data, request):
     if data["missing_years"] != missing:
         raise ValueError("원자료와 자료 없음 표시가 다릅니다.")
     return expected
+
+
+JASDC_SOURCE = "data/processed/citrus_production_yearly.csv"
+
+
+def verify_jasdc_reference(data, request):
+    """Same independent audit for the 제주농산물수급관리센터 series (csv module + Decimal)."""
+    from . import tools
+    raw = (tools.ROOT / JASDC_SOURCE).read_bytes()
+    if data.get("source_sha256") != hashlib.sha256(raw).hexdigest():
+        raise ValueError("조회 시점과 검증 시점의 원자료가 다릅니다.")
+    reader = csv.DictReader(io.StringIO(raw.decode("utf-8-sig")))
+    if not {"품종", "연도", "재배면적_ha", "생산량_톤"} <= set(reader.fieldnames or ()):
+        raise ValueError("원자료 열 또는 단위 변경")
+    name = tools.JASDC_NAMES[request["variety"]]
+    expected = {}
+    for row in reader:
+        if row["품종"] != name:
+            continue
+        year = int(row["연도"])
+        if not request["start_year"] <= year <= request["end_year"]:
+            continue
+        if year in expected:
+            raise ValueError("원자료의 품종·연도가 중복됩니다.")
+        expected[year] = (numeric(row["재배면적_ha"]), numeric(row["생산량_톤"]))
+    actual = {r["연도"]: (numeric(r["생산면적_ha"]), numeric(r["생산량_톤"])) for r in data["rows"]}
+    if actual != expected:
+        raise ValueError("원자료와 조회 값 또는 연도 행이 다릅니다.")
+    if data["missing_years"] != sorted(set(range(request["start_year"], request["end_year"] + 1)) - expected.keys()):
+        raise ValueError("원자료와 자료 없음 표시가 다릅니다.")
+    return expected

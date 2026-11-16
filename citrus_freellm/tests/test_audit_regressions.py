@@ -35,8 +35,8 @@ class AuditRegressions(unittest.TestCase):
         self.assertEqual(plan["years"], [2018])
 
     def test_missing_analysis_year_explains_which_year(self):
-        answer = Agent(Mock()).ask("2019년부터 2021년까지 천혜향 생산량 평균")
-        self.assertIn("2021", answer)
+        answer = Agent(Mock()).ask("2019년부터 2026년까지 천혜향 생산량 평균")
+        self.assertIn("2026", answer)
         self.assertIn("자료", answer)
         self.assertIn("보류", answer)
 

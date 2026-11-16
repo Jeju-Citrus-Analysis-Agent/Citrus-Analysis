@@ -1,4 +1,5 @@
 """팀 검증용 Streamlit 화면. 답변·검증·리포트는 기존 모듈을 재사용한다."""
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -11,6 +12,7 @@ parent = str(Path(__file__).resolve().parents[1])
 if parent not in sys.path:
     sys.path.insert(0, parent)
 
+from citrus_freellm import landing
 from citrus_freellm.agent import Agent
 from citrus_freellm.reporting import save_report
 from citrus_freellm.example_questions import EXAMPLE_CATEGORIES
@@ -18,13 +20,49 @@ from citrus_freellm.presentation import split_answer
 from citrus_freellm.navigation import question_anchor, scroll_script, SCROLL_FRAME_HEIGHT
 from citrus_freellm.usability import (availability_signature, source_availability, snapshot_context,
                                      restore_context, followup_context, chart_followup,
-                                     comparison_followup, number_hints, unit_hints)
+                                     comparison_followup, number_hints, unit_hints,
+                                     needs_examples, related_examples, friendly_failure)
 
 
 @st.cache_data(show_spinner=False)
 def available_sources(signature):
     # The size and modification time invalidate the cache when local files change.
     return source_availability()
+
+
+def static_chart(frame, artifact):
+    # st.line_chart and friends always zoom on the mouse wheel, which hijacks
+    # page scrolling. Plain Altair charts are not interactive unless asked.
+    import altair as alt
+    series = artifact.get('series')
+    columns = [artifact['x'], artifact['y']] + ([series, '원래 값'] if series else [])
+    data = frame[columns].set_axis(['x', 'y'] + (['s', 'v'] if series else []), axis=1)
+    chart = alt.Chart(data)
+    points = data['x'].nunique()
+    if artifact.get('chart_kind') == 'bar':
+        chart = chart.mark_bar()
+    else:
+        chart = chart.mark_point(filled=True) if points == 1 else chart.mark_line(point=True)
+    tooltip = [alt.Tooltip('x:O', title=artifact['x']), alt.Tooltip('y:Q', title=artifact['y'], format=',')]
+    encoding = {'x': alt.X('x:O', sort=None, title=artifact['x'], axis=alt.Axis(labelAngle=0 if points <= 8 else -45)),
+                'y': alt.Y('y:Q', title=artifact['y'])}
+    if series:
+        # Several metrics share one % axis; colour tells them apart, bars sit side by side.
+        order = list(dict.fromkeys(data['s']))
+        encoding['color'] = alt.Color('s:N', sort=order, title=series, legend=alt.Legend(orient='bottom'))
+        if artifact.get('chart_kind') == 'bar':
+            encoding['xOffset'] = alt.XOffset('s:N', sort=order)
+        tooltip = [tooltip[0], alt.Tooltip('s:N', title=series), tooltip[1],
+                   alt.Tooltip('v:Q', title='원래 값', format=',')]
+    return chart.encode(**encoding, tooltip=tooltip)
+
+
+LONG_DETAILS = 900  # characters; shorter details (a lookup table) stay open under the conclusion
+
+
+def plain_tildes(text):
+    """'2016~2020 … 53~56%' must not become strikethrough: Streamlit reads a pair of ~ as ~~."""
+    return re.sub(r'(?<!\\)~', r'\\~', text)
 
 
 def begin_edit(index):
@@ -42,7 +80,9 @@ def request_scroll(index):
 
 
 def main():
-    st.set_page_config(page_title="제주 감귤 분석 도우미", page_icon="🍊", layout="centered")
+    # One layout before and after the first question: the hero stays and answers follow it.
+    # Chat cards keep a readable width through landing.CSS.
+    st.set_page_config(page_title="감귤의 신 (神) : 데이터로 읽는 제주 감귤 수급 비서", page_icon="🍊", layout="wide")
     st.markdown('''<style>
     [class*="st-key-edit_action_"] button {
         min-height: 1.5rem; padding: .05rem .35rem;
@@ -60,13 +100,9 @@ def main():
         st.session_state.exports = []
     agent = st.session_state.agent
     agent.local_only = True
-    st.title("🍊 제주 감귤 분석 도우미")
-    st.caption("감귤 생산 통계를 찾아보고, 기존 분석을 읽고, 판매 조건에 따른 이익을 계산해 보세요.")
     availability = available_sources(availability_signature())
-    production_source = next(r for r in availability if r['key'] == 'production')
-    st.caption('생산량·면적 조회 가능 기간: ' + production_source['period'])
+    selected_question = landing.render()
 
-    selected_question = None
     selected_context = None
     edited_index = None
     with st.sidebar:
@@ -89,10 +125,11 @@ def main():
                 st.error("리포트를 저장하지 못했습니다. 저장 폴더의 접근 권한을 확인해 주세요.")
         for name, content in st.session_state.exports:
             extension = Path(name).suffix
-            label, mime = {".html": ("읽기용 리포트", "text/html"),
-                           ".md": ("Markdown 리포트", "text/markdown"),
-                           ".json": ("계산 조건·출처 기록", "application/json")}[extension]
+            label, mime = {".pdf": ("PDF 리포트", "application/pdf"),
+                           ".md": ("Markdown 리포트", "text/markdown")}[extension]
             st.download_button(label, content, file_name=name, mime=mime, key=name)
+        if st.session_state.exports and not any(n.endswith('.pdf') for n, _ in st.session_state.exports):
+            st.caption('PDF용 한글 글꼴이나 변환 도구를 찾지 못해 Markdown만 만들었습니다.')
         with st.expander("사용 안내"):
             st.markdown("""
 **질문하기**
@@ -109,7 +146,7 @@ API 키는 필요 없으며, 인터넷 검색만 인터넷 연결이 필요합�
 
 **결과 저장**
 
-**리포트 만들기 → 읽기용 리포트**를 눌러 다운로드하세요.
+**리포트 만들기 → PDF 리포트** 또는 **Markdown 리포트**를 눌러 다운로드하세요.
 **새 대화**를 누르면 이전 질문과 계산 조건이 지워집니다.
 
 답변은 **결론 → 세부 설명** 순서로 보여줍니다.
@@ -126,18 +163,12 @@ API 키는 필요 없으며, 인터넷 검색만 인터넷 연결이 필요합�
                 if st.button(question, key=f'example_{category}_{index}', use_container_width=True):
                     selected_question = question
 
-    if not st.session_state.messages:
-        st.info("아래에 질문을 입력해 주세요. 예: ‘2020년 천혜향 생산량 알려줘’\n\n왼쪽 ‘사용 안내’에서 사용법을 읽거나 ‘예시 질문’을 눌러 시작할 수 있습니다.")
     def show_artifacts(message):
         import pandas as pd
         for artifact in message.get('artifacts', []):
             if artifact['type'] == 'chart':
                 st.caption(artifact['title'] + ' · 단위: ' + artifact['unit'])
-                if artifact.get('chart_kind') == 'bar':
-                    chart = st.bar_chart
-                else:
-                    chart = st.scatter_chart if len(artifact['data']) == 1 else st.line_chart
-                chart(pd.DataFrame(artifact['data']), x=artifact['x'], y=artifact['y'])
+                st.altair_chart(static_chart(pd.DataFrame(artifact['data']), artifact), use_container_width=True)
 
     for message_index, message in enumerate(st.session_state.messages):
         if message['role'] == 'user':
@@ -163,27 +194,40 @@ API 키는 필요 없으며, 인터넷 검색만 인터넷 연결이 필요합�
                     st.rerun()
                 continue
             summary, details = split_answer(message['content']) if message['role'] == 'assistant' else (message['content'], '')
-            st.markdown(summary)
+            st.markdown(plain_tildes(summary))
             if message['role'] == 'assistant':
                 hints = number_hints(summary)
                 if hints:
-                    st.caption('숫자를 쉽게 읽으면: ' + ' · '.join(hints), help='원래 값과 단위는 그대로 유지합니다.')
-            if details:
-                st.markdown(details)
+                    st.caption(plain_tildes('숫자를 쉽게 읽으면: ' + ' · '.join(hints)), help='원래 값과 단위는 그대로 유지합니다.')
+            if details and len(details) > LONG_DETAILS:
+                # Long explanations: conclusion and picture first, the evidence one click away.
+                show_artifacts(message)
+                with st.expander('자세히 보기 (표·근거·출처)'):
+                    st.markdown(plain_tildes(details))
+            elif details:
+                st.markdown(plain_tildes(details))
                 show_artifacts(message)
             else:
                 show_artifacts(message)
             if message['role'] == 'assistant':
                 units = unit_hints(message['content'])
                 if units:
-                    st.caption('단위 도움말: ' + ' · '.join(units))
+                    st.caption(plain_tildes('단위 도움말: ' + ' · '.join(units)))
+                if message.get('examples'):
+                    st.caption('이렇게 물어보면 바로 답할 수 있어요. 눌러서 질문해 보세요.')
+                    for example_index, example in enumerate(message['examples']):
+                        if st.button(plain_tildes(example), key=f'related_{message_index}_{example_index}', icon=':material/chat_bubble:'):
+                            selected_question = example
             if message['role'] == 'user':
                 with st.container(key=f'edit_action_{message_index}'):
                     st.button('수정하기', key=f'edit_{message_index}', on_click=begin_edit,
                               args=(message_index,), help='이 질문을 그 자리에서 수정합니다.')
 
     if st.session_state.messages:
-        st.markdown('<div id="question-scroll-space" style="height:0" aria-hidden="true"></div>', unsafe_allow_html=True)
+        # The scroll job resizes this div in the browser. A keyed container keeps
+        # Streamlit from reusing that resized node as the next question anchor.
+        with st.container(key='question_scroll_space'):
+            st.markdown('<div id="question-scroll-space" style="height:0" aria-hidden="true"></div>', unsafe_allow_html=True)
     target = st.session_state.pop('scroll_target', None)
     if target is not None:
         # Changing the container key forces remounting even on consecutive submits.
@@ -238,9 +282,12 @@ API 키는 필요 없으며, 인터넷 검색만 인터넷 연결이 필요합�
                     answer = "요청을 처리하지 못했습니다. 입력한 조건과 자료 파일을 확인한 뒤 다시 질문해 주세요."
             created_result = bool(agent.results and agent.results[-1] is not previous_result)
             next_context = followup_context(prompt, agent, availability) if created_result else None
+            examples = related_examples(prompt, availability) if needs_examples(prompt, answer, agent) else []
+            if examples:
+                answer = friendly_failure(answer)
             st.session_state.messages.append({"role": "assistant", "content": answer,
                                               'artifacts': agent.last_artifacts, 'trace': agent.last_trace,
-                                              'followup': next_context})
+                                              'followup': next_context, 'examples': examples})
             request_scroll(len(st.session_state.messages) - 2)
         st.rerun()
 

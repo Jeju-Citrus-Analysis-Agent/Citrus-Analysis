@@ -22,6 +22,11 @@ ALIASES = {
     "온주밀감하우스": ("온주밀감하우스", "하우스온주"),
     "온주밀감월동": ("온주밀감월동", "월동온주"),
 }
+# Follow-up phrasing the optional model interpreter used to handle (see intent.py).
+HARVEST = r"얼마나났|얼마나나왔|얼마나거뒀|수확량"
+PREVIOUS_YEAR = r"그전해|그이전해|이전해|^전해"
+METRIC_WORDS = {"생산량": "생산량_톤", "면적": "생산면적_ha"}
+EXCLUDE = re.compile(r"(생산량|면적)(?:만|은|는|을|를)?(?:빼고|빼줘|제외|말고)")
 
 
 def request_for(question, previous=None):
@@ -51,9 +56,20 @@ def request_for(question, previous=None):
         metrics = ["생산량_톤"]
     if re.search(r"둘다|둘모두", compact):
         metrics = ["생산량_톤", "생산면적_ha"]
+    if re.search(HARVEST, compact) and "생산량_톤" not in metrics:
+        metrics.append("생산량_톤")
+    # "면적만 빼고" names 면적 but asks for everything else, so it overrides the mentions above.
+    removed = {METRIC_WORDS[word] for word in EXCLUDE.findall(compact)}
+    if removed:
+        base = (previous or {}).get("metrics") or ["생산량_톤", "생산면적_ha"]
+        metrics = [m for m in base if m not in removed]
+        if not metrics:
+            return None, "빼고 나면 보여줄 항목이 없습니다. 생산량과 면적 중 무엇을 볼지 알려주세요."
+    previous_year = bool(re.search(PREVIOUS_YEAR, compact))
     if not explicit_years and re.search(r"올해|금년|내년|최근|최신|작년|지난해", compact):
         return None, "상대적인 기간 대신 조회할 기준 연도를 숫자로 명시해 주세요."
-    if not varieties and not years and not metrics:
+    follows = previous and (previous_year or re.search(r"두해|두연도", compact))
+    if not varieties and not years and not metrics and not follows:
         return None, CLARIFY
     variety = next(iter(varieties), None)
     if previous:
@@ -64,7 +80,12 @@ def request_for(question, previous=None):
     metrics = metrics or ["생산량_톤"]
     if not variety or not years:
         return None, CLARIFY
-    if re.search(r"전년|작년|지난해", compact):
+    if previous_year:
+        if len(set(years)) != 1:
+            return None, "어느 해의 전해인지 기준 연도 하나를 알려주세요. 예: 2020년 천혜향 생산량의 그 전해"
+        anchor = years[0]
+        years = [anchor - 1, anchor] if re.search(r"비교|대비|차이|증감", compact) else [anchor - 1]
+    elif re.search(r"전년|작년|지난해", compact):
         if len(set(years)) != 1:
             return None, "전년 비교의 기준 연도 하나를 명시해 주세요."
         years = [years[0] - 1, years[0]]
@@ -75,7 +96,9 @@ def request_for(question, previous=None):
         return None, "조회 기간은 시작 연도부터 종료 연도 순서로 입력해 주세요."
     if is_range and len(years) > 2:
         return None, "기간 조회는 시작 연도와 종료 연도 두 개로 지정해 주세요."
-    if not explicit_years and previous and not is_range:
+    if previous_year:
+        mode = "selected"
+    elif not explicit_years and previous and not is_range:
         mode = previous.get("mode", "selected")
     else:
         mode = "range" if is_range else "selected"
@@ -100,7 +123,9 @@ def validate_evidence(data, request):
     from jeju_citrus.data.clean_quality import FRUIT_CATEGORY_MAP
     if not isinstance(data, dict) or data.get("error"):
         raise ValueError("조회 실패")
-    if data.get("request") != request or data.get("source") != SOURCE:
+    from .tools import JASDC_SOURCE, uses_jasdc
+    jasdc = uses_jasdc(request["variety"], request["start_year"], request["end_year"])
+    if data.get("request") != request or data.get("source") != (JASDC_SOURCE if jasdc else SOURCE):
         raise ValueError("조회 조건 또는 출처 불일치")
     if data.get("units") != {"생산면적_ha": "ha", "생산량_톤": "톤"}:
         raise ValueError("단위 불일치")
@@ -114,7 +139,7 @@ def validate_evidence(data, request):
             raise ValueError("기간 또는 중복 오류")
         if row["품종"] != request["variety"]:
             raise ValueError("품종 불일치")
-        if row["집계수준"] != FRUIT_CATEGORY_MAP[request["variety"]][1]:
+        if not jasdc and row["집계수준"] != FRUIT_CATEGORY_MAP[request["variety"]][1]:
             raise ValueError("집계수준 불일치")
         years.add(year)
         for metric in ("생산량_톤", "생산면적_ha"):
@@ -126,8 +151,8 @@ def validate_evidence(data, request):
         raise ValueError("누락 연도 불일치")
     if len({r["집계수준"] for r in rows}) > 1:
         raise ValueError("집계수준 혼합")
-    from .reference_check import verify_reference
-    verify_reference(data, request)
+    from .reference_check import verify_reference, verify_jasdc_reference
+    (verify_jasdc_reference if jasdc else verify_reference)(data, request)
     return sorted(rows, key=lambda r: r["연도"])
 
 
@@ -138,8 +163,9 @@ def number(value):
 def render(data, request, question):
     rows = validate_evidence(data, request)
     compact = re.sub(r"\s+", "", question)
+    area_label = data.get("area_label", "생산면적")
     definitions = {"생산량_톤": ("생산량_톤", "생산량", "톤"),
-                   "생산면적_ha": ("생산면적_ha", "생산면적", "ha")}
+                   "생산면적_ha": ("생산면적_ha", area_label, "ha")}
     keys = request.get("metrics")
     if keys is None:
         keys = (["생산량_톤"] if "면적" not in compact or "생산량" in compact else [])
@@ -178,7 +204,10 @@ def render(data, request, question):
         lines.append("\n자료 없는 연도: " + ", ".join(map(str, displayed_missing)) + ". 보간하거나 추정하지 않았습니다.")
     if any(key == "생산면적_ha" for key, _, _ in metrics):
         lines.append("\n품질 주의: " + QUALITY_NOTE)
-    lines.append("\n출처: " + source_citation({'path': SOURCE}))
+    if data["source"] != SOURCE:
+        lines.append("\n2015~2020년 밖의 연도를 포함해 제주농산물수급관리센터 품종별 통계로 답했습니다. "
+                     "면적은 이 통계의 재배면적입니다. 2015~2020년만 물으면 제주데이터허브 과수 통계로 답합니다.")
+    lines.append("\n출처: " + source_citation({'path': data["source"]}))
     summary = []
     for key, label, unit in metrics:
         points = [(year, by_year.get(year, {}).get(key)) for year in display_years]

@@ -100,7 +100,7 @@ def resolve(question, previous, proposal):
             return None, CLARIFY
         # The year arithmetic is already resolved. Remove relative tokens so
         # request_for does not interpret them as a second year-over-year request.
-        normalized = re.sub(r"전년|작년|지난해", "", question) + f" {year}년"
+        normalized = re.sub(r"그\s*이전\s*해|그\s*전\s*해|이전\s*해|전년|작년|지난해", "", question) + f" {year}년"
     elif year_op == "compare_previous_year":
         anchors = explicit or (previous or {}).get("years", [])
         if len(anchors) != 1 or not re.search(r"전해|전년|작년|지난해", year_quote):

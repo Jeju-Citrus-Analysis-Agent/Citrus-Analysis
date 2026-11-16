@@ -55,6 +55,10 @@ class Agent:
 
     def record(self, kind, question, conditions, text, sources):
         """검증에 성공한 결과만 리포트 대상으로 등록한다."""
+        if kind == 'analysis_explanation':
+            # Cost/price explanations read better next to the verified numbers they talk about.
+            from .cost_tools import explanation_charts
+            self.last_artifacts = explanation_charts(conditions.get('evidence_ids', []))
         text = public_text(text)
         sources = [dict(source, data_origin=readme_source(source['path']))
                    if source.get('path') else source for source in sources]
@@ -138,6 +142,14 @@ class Agent:
         self.last_metadata_question = None
         try:
             scenario, scenario_blocked = parse_scenario(question, self.scenario)
+            if scenario_blocked and not self.scenario and not re.search(r'\d', question):
+                # '경영비'·'손익분기' without any numbers is a question about the analysis,
+                # not an incomplete assumption calculation.
+                insight = explain(question, self.insight_ids)
+                if insight:
+                    self.insight_ids = insight['conditions']['evidence_ids']
+                    self.previous_request = None
+                    return self.record(insight['kind'], question, insight['conditions'], insight['text'], insight['sources'])
             if scenario_blocked:
                 return self.remember(question, scenario_blocked)
             if scenario:

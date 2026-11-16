@@ -1,5 +1,4 @@
 """Conclusions must preserve verified numbers and material caveats before details."""
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -70,9 +69,9 @@ class PresentationTests(unittest.TestCase):
             with patch('citrus_freellm.reporting.OUTPUT', Path(folder)):
                 paths = save_report(agent.results)
             markdown = next(Path(p).read_text(encoding='utf-8') for p in paths if p.endswith('.md'))
-            payload = json.loads(next(Path(p).read_text(encoding='utf-8') for p in paths if p.endswith('.json')))
         self.assertLess(markdown.index('**결론**'), markdown.index('| 연도 |'))
-        self.assertEqual(payload['results'][0]['text'], agent.history[-1]['content'])
+        # The report carries the answer exactly as the reader saw it.
+        self.assertIn(agent.history[-1]['content'], markdown)
 
     def test_simple_greeting_and_error_stay_short(self):
         for question in ('안녕', '2030년 천혜향 생산량 그래프'):

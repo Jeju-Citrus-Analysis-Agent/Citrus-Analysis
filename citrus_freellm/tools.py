@@ -26,6 +26,39 @@ def catalog():
     return data_catalog(ROOT)
 
 
+FRUIT_SOURCE = "data/raw/public/fruit_production.csv"
+FRUIT_YEARS = range(2015, 2021)
+# Citrus series from 제주농산물수급관리센터 (2004~2025). Used only when a request leaves the
+# 2015~2020 fruit table, and never mixed with it inside one answer.
+JASDC_SOURCE = "data/processed/citrus_production_yearly.csv"
+JASDC_NAMES = {"온주밀감노지": "노지온주", "온주밀감하우스": "하우스온주", "온주밀감월동": "월동온주",
+               "한라봉": "한라봉", "천혜향": "천혜향", "레드향": "레드향", "황금향": "황금향"}
+
+
+def uses_jasdc(variety, start_year, end_year):
+    outside = not (start_year in FRUIT_YEARS and end_year in FRUIT_YEARS)
+    return outside and variety in JASDC_NAMES and (ROOT / JASDC_SOURCE).is_file()
+
+
+def jasdc_production(variety, start_year, end_year):
+    import pandas as pd
+    path = ROOT / JASDC_SOURCE
+    raw = path.read_bytes()
+    frame = pd.read_csv(io.BytesIO(raw), encoding="utf-8-sig")
+    selected = frame[(frame["품종"] == JASDC_NAMES[variety]) & frame["연도"].between(start_year, end_year)].sort_values("연도")
+    if selected["연도"].duplicated().any():
+        raise ValueError("중복 연도가 있어 단일 통계로 확정할 수 없습니다.")
+    rows = [{"연도": int(r["연도"]), "품종": variety, "집계수준": "감귤_품종별(수급관리센터)",
+             "생산면적_ha": None if pd.isna(r["재배면적_ha"]) else float(r["재배면적_ha"]),
+             "생산량_톤": None if pd.isna(r["생산량_톤"]) else float(r["생산량_톤"])}
+            for _, r in selected.iterrows()]
+    return {"rows": rows, "source": JASDC_SOURCE, "source_sha256": hashlib.sha256(raw).hexdigest(),
+            "request": {"variety": variety, "start_year": start_year, "end_year": end_year},
+            "units": {"생산면적_ha": "ha", "생산량_톤": "톤"}, "area_label": "재배면적",
+            "missing_years": sorted(set(range(start_year, end_year + 1)) - {r["연도"] for r in rows}),
+            "warning": "2017년 재배면적 통계 단절. 2016년 이전과 이후의 면적을 바로 비교하지 마세요."}
+
+
 def production(variety, start_year, end_year):
     import pandas as pd
     if type(start_year) is not int or type(end_year) is not int or not 1900 <= start_year <= end_year <= 2100:
@@ -33,6 +66,10 @@ def production(variety, start_year, end_year):
     rules = cleaning_rules(ROOT)
     if variety not in rules.FRUIT_CATEGORY_MAP:
         raise ValueError("원본에 없는 품종입니다.")
+    if uses_jasdc(variety, start_year, end_year):
+        result = jasdc_production(variety, start_year, end_year)
+        add_change(result, start_year, end_year)
+        return result
     path = ROOT / "data/raw/public/fruit_production.csv"
     raw = path.read_bytes()
     frame = rules.clean_fruit_production(pd.read_csv(io.BytesIO(raw), encoding="utf-8-sig"))
@@ -47,6 +84,12 @@ def production(variety, start_year, end_year):
               "units": {"생산면적_ha": "ha", "생산량_톤": "톤"},
               "missing_years": sorted(set(range(start_year, end_year + 1)) - set(selected["연도"])),
               "warning": "2017년 면적 통계 단절. 집계수준이 다른 행을 합산하지 마세요."}
+    add_change(result, start_year, end_year)
+    return result
+
+
+def add_change(result, start_year, end_year):
+    rows = result["rows"]
     if len(rows) > 1 and rows[0]["연도"] == start_year and rows[-1]["연도"] == end_year:
         result["change"] = {}
         for col in ("생산면적_ha", "생산량_톤"):

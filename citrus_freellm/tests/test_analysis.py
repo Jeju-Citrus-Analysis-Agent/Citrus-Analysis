@@ -43,7 +43,7 @@ class AnalysisTests(unittest.TestCase):
         self.assertIn("14,671.5", answer)
 
     def test_missing_year_does_not_reduce_denominator(self):
-        plan = self.plan("2019~2021년 천혜향 생산량 평균")
+        plan = self.plan("2019~2026년 천혜향 생산량 평균")
         with self.assertRaises(ValueError):
             calculate(plan)
 

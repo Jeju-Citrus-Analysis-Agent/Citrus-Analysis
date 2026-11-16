@@ -29,6 +29,7 @@ PRICE_DATASETS = {"noji_yearly", "noji_monthly_2025", "noji_market_2025", "noji_
                   "varieties_summary", "citrus_production_yearly", "citrus_price_daily", "citrus_price_monthly_box"}
 PRODUCTION_DATASETS = {"fruit_production", "jeju_special_crops", "citrus_production_yearly"}
 FRUIT_DATASETS = {"fruit_production", "citrus_production_yearly"}
+COST_DATASETS = {"standard_income", "cpi_annual"}
 
 
 def definitions():
@@ -152,6 +153,8 @@ def select_metadata_names(compact):
         return {"citrus_export_yearly"}
     if re.search(r"가공|수매", compact):
         return {"citrus_processing_yearly", "citrus_processing_by_company"}
+    if re.search(r"경영비|소득|생산비|순수익|표준소득|물가|CPI|손익분기", compact, re.I):
+        return COST_DATASETS
     if re.search(r"가격|단가", compact):
         return PRICE_DATASETS
     if re.search(r"유통|출하", compact):
@@ -252,7 +255,7 @@ def metadata_answer(question):
                 summary.append(f"{label}은 {period_text(record)} 자료를 보유합니다.")
         summary.append("현재 검증된 수치 조회는 과수 자료만 지원하며, 특용작물은 자료 안내만 지원합니다.")
     if selected == PRICE_DATASETS and not any(r.get("available") for r in records):
-        summary.append("가격 관련 자료는 현재 로컬에 없습니다. 아래는 프로젝트 문서에 기재된 파일 목록입니다.")
+        summary.append("가격 관련 자료는 현재 로컬에 없습니다. 아래는 문서에 기재된 파일 목록입니다.")
     if summary:
         lines = lines[:2] + summary + [""] + lines[2:]
     for record in records:

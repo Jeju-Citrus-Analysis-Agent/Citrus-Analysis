@@ -90,9 +90,11 @@ class WebTests(unittest.TestCase):
             with patch("citrus_freellm.reporting.OUTPUT", Path(directory)):
                 next(b for b in app.button if b.label == "리포트 만들기").click().run()
                 self.assertFalse(app.exception)
-                self.assertEqual(len(app.session_state.exports), 3)
-                body = next(data for name, data in app.session_state.exports if name.endswith('.json'))
-                self.assertIn(b'sha256', body)
+                self.assertEqual(sorted(Path(name).suffix for name, _ in app.session_state.exports), ['.md', '.pdf'])
+                body = next(data for name, data in app.session_state.exports if name.endswith('.md'))
+                self.assertIn('sha256'.encode(), body)
+                labels = {b.label for b in app.sidebar.get('download_button')}
+                self.assertEqual(labels, {'PDF 리포트', 'Markdown 리포트'})
 
     def test_sessions_do_not_share_agent(self):
         first, second = self.app(), self.app()
@@ -123,7 +125,7 @@ class WebTests(unittest.TestCase):
             with patch('citrus_freellm.reporting.OUTPUT', Path(directory)):
                 next(b for b in app.button if b.label == '리포트 만들기').click().run()
         self.assertFalse(app.exception)
-        self.assertEqual(len(app.session_state.exports), 3)
+        self.assertEqual(len(app.session_state.exports), 2)  # Markdown + PDF
 
     def test_conclusion_and_details_are_visible_in_order(self):
         app = self.app()
@@ -135,6 +137,17 @@ class WebTests(unittest.TestCase):
         self.assertIn('| 연도 |', message.markdown[1].value)
         self.assertIn('출처:', message.markdown[1].value)
         self.assertFalse(any(e.label.startswith('자세한 내용 보기') for e in message.expander))
+        self.assertFalse(message.expander)  # a short lookup stays fully open
+
+    def test_long_explanation_shows_conclusion_and_chart_before_folded_details(self):
+        app = self.app()
+        app.chat_input[0].set_value('가격이 오른 건 물가 때문이야?').run()
+        message = app.chat_message[-1]
+        self.assertTrue(message.markdown[0].value.startswith('**결론**'))
+        folded, = message.expander
+        self.assertTrue(folded.label.startswith('자세히 보기'))
+        self.assertTrue(folded.markdown[0].value.startswith('**세부 설명**'))
+        self.assertTrue(app.session_state.messages[-1]['artifacts'])  # chart sits above the fold
 
     def test_followup_questions_work_without_action_buttons(self):
         app = self.app()
@@ -199,7 +212,8 @@ class WebTests(unittest.TestCase):
 
     def test_coverage_and_unit_help_and_single_year_chart(self):
         app = self.app()
-        self.assertTrue(any('생산량·면적 조회 가능 기간: 2015~2020년' in c.value for c in app.caption))
+        # The home screen no longer shows the coverage line; '어떤 데이터가 있어?' answers it.
+        self.assertFalse(any('조회 가능 기간' in c.value for c in app.caption))
         self.assertFalse(any(e.label in {'조회 가능한 자료', '숫자·단위 도움말', '도구별 쉬운 질문'} for e in app.expander))
         self.assertFalse(any('단위 도움말:' in c.value for c in app.caption))
         app.chat_input[0].set_value('2020년 천혜향 생산량').run()

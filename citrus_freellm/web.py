@@ -15,6 +15,7 @@ if parent not in sys.path:
 from citrus_freellm import landing
 from citrus_freellm.agent import Agent
 from citrus_freellm.client import LazyFreeLLMClient, claude_configured
+from citrus_freellm.consult import ConsultAgent
 from citrus_freellm.reporting import save_report
 from citrus_freellm.example_questions import EXAMPLE_CATEGORIES
 from citrus_freellm.presentation import split_answer
@@ -40,22 +41,30 @@ def static_chart(frame, artifact):
     data = frame[columns].set_axis(['x', 'y'] + (['s', 'v'] if series else []), axis=1)
     chart = alt.Chart(data)
     points = data['x'].nunique()
-    if artifact.get('chart_kind') == 'bar':
-        chart = chart.mark_bar()
+    kind = artifact.get('chart_kind')
+    if kind == 'bar':
+        chart = chart.mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+    elif kind == 'area':
+        chart = chart.mark_area(opacity=.45, line=True, point=True)
+    elif kind == 'point' or points == 1:
+        chart = chart.mark_point(filled=True, size=90)
     else:
-        chart = chart.mark_point(filled=True) if points == 1 else chart.mark_line(point=True)
+        chart = chart.mark_line(point=True, strokeWidth=2.5)
+    # '값' alone says nothing; show the unit there instead.
+    y_title = f"값 ({artifact['unit']})" if artifact['y'] == '값' and artifact.get('unit') else artifact['y']
     tooltip = [alt.Tooltip('x:O', title=artifact['x']), alt.Tooltip('y:Q', title=artifact['y'], format=',')]
     encoding = {'x': alt.X('x:O', sort=None, title=artifact['x'], axis=alt.Axis(labelAngle=0 if points <= 8 else -45)),
-                'y': alt.Y('y:Q', title=artifact['y'])}
+                # Several series never stack: each mark keeps its own value.
+                'y': alt.Y('y:Q', title=y_title, stack=None)}
     if series:
         # Several metrics share one % axis; colour tells them apart, bars sit side by side.
         order = list(dict.fromkeys(data['s']))
         encoding['color'] = alt.Color('s:N', sort=order, title=series, legend=alt.Legend(orient='bottom'))
-        if artifact.get('chart_kind') == 'bar':
+        if kind == 'bar':
             encoding['xOffset'] = alt.XOffset('s:N', sort=order)
         tooltip = [tooltip[0], alt.Tooltip('s:N', title=series), tooltip[1],
                    alt.Tooltip('v:Q', title='원래 값', format=',')]
-    return chart.encode(**encoding, tooltip=tooltip)
+    return chart.encode(**encoding, tooltip=tooltip).configure(font="'Citrus Round', 'Cafe24Ssurround', sans-serif")
 
 
 LONG_DETAILS = 900  # characters; shorter details (a lookup table) stay open under the conclusion
@@ -94,7 +103,8 @@ def request_scroll(index):
 def main():
     # One layout before and after the first question: the hero stays and answers follow it.
     # Chat cards keep a readable width through landing.CSS.
-    st.set_page_config(page_title="감귤의 신 (神) : 데이터로 읽는 제주 감귤 수급 비서", page_icon="🍊", layout="wide")
+    st.set_page_config(page_title="감귤의 신 (神) : 데이터로 읽는 제주 감귤 수급 비서", page_icon="🍊", layout="wide",
+                       initial_sidebar_state="collapsed")
     st.markdown('''<style>
     [class*="st-key-edit_action_"] button {
         min-height: 1.5rem; padding: .05rem .35rem;
@@ -105,62 +115,66 @@ def main():
     [data-testid="stMain"] {overflow-anchor: none; scroll-behavior: auto;}
     </style>''', unsafe_allow_html=True)
     use_model = claude_configured()
-    st.sidebar.caption("Claude가 애매한 질문의 뜻만 해석 · 숫자는 내 컴퓨터 자료로만 답합니다" if use_model
-                       else "API 키 없이 사용 · 내 컴퓨터의 자료만으로 답합니다")
     # Agent를 전역 캐시에 두면 다른 브라우저 세션과 대화가 섞일 수 있다.
-    if "agent" not in st.session_state or (getattr(st.session_state.agent, 'client', None) is not None) != use_model:
-        st.session_state.agent = Agent(LazyFreeLLMClient() if use_model else None, local_only=True)
+    if "agent" not in st.session_state or isinstance(st.session_state.agent, ConsultAgent) != use_model:
+        st.session_state.agent = ConsultAgent(LazyFreeLLMClient()) if use_model else Agent(local_only=True)
         st.session_state.messages = []
         st.session_state.exports = []
     agent = st.session_state.agent
     agent.local_only = True
     availability = available_sources(availability_signature())
-    selected_question = landing.render()
+    chosen = {}
 
-    selected_context = None
-    edited_index = None
-    with st.sidebar:
-        st.header("대화와 리포트")
-        if st.button("새 대화", use_container_width=True):
-            agent.reset()
-            st.session_state.messages = []
-            st.session_state.exports = []
-            st.session_state.pop('editing_question', None)
-            st.session_state.pop('comparison_target', None)
-            st.session_state.pop('scroll_target', None)
-            st.rerun()
-        st.caption(f"리포트에 담을 수 있는 결과: {len(agent.results)}개")
-        scope = st.radio("저장 범위", ("최근 결과 1개", "전체 결과"))
-        if st.button("리포트 만들기", disabled=not agent.results, use_container_width=True):
-            try:
-                paths = save_report(agent.results, scope == "전체 결과")
-                st.session_state.exports = [(Path(p).name, Path(p).read_bytes()) for p in paths]
-            except (ValueError, OSError):
-                st.error("리포트를 저장하지 못했습니다. 저장 폴더의 접근 권한을 확인해 주세요.")
-        for name, content in st.session_state.exports:
-            extension = Path(name).suffix
-            label, mime = {".pdf": ("PDF 리포트", "application/pdf"),
-                           ".md": ("Markdown 리포트", "text/markdown")}[extension]
-            st.download_button(label, content, file_name=name, mime=mime, key=name)
-        if st.session_state.exports and not any(n.endswith('.pdf') for n, _ in st.session_state.exports):
-            st.caption('PDF용 한글 글꼴이나 변환 도구를 찾지 못해 Markdown만 만들었습니다.')
-        with st.expander("사용 안내"):
-            st.markdown("""
+    def toolbar():
+        """What used to live in the sidebar: one row of small buttons under the logo."""
+        with st.container(key='citrus_toolbar', horizontal=True, horizontal_alignment='left', gap='small'):
+            if st.button("새 대화", icon=':material/refresh:'):
+                agent.reset()
+                st.session_state.messages = []
+                st.session_state.exports = []
+                st.session_state.pop('editing_question', None)
+                st.session_state.pop('comparison_target', None)
+                st.session_state.pop('scroll_target', None)
+                st.rerun()
+            with st.popover("예시 질문", icon=':material/lightbulb:'):
+                category = st.selectbox('무엇을 하고 싶으세요?', tuple(EXAMPLE_CATEGORIES), key='example_category')
+                for index, question in enumerate(EXAMPLE_CATEGORIES[category]):
+                    if st.button(question, key=f'example_{category}_{index}', use_container_width=True):
+                        chosen['question'] = question
+            with st.popover(f"리포트 {len(agent.results)}", icon=':material/description:'):
+                st.caption(f"리포트에 담을 수 있는 결과: {len(agent.results)}개")
+                scope = st.radio("저장 범위", ("최근 결과 1개", "전체 결과"))
+                if st.button("리포트 만들기", disabled=not agent.results, use_container_width=True):
+                    try:
+                        paths = save_report(agent.results, scope == "전체 결과")
+                        st.session_state.exports = [(Path(p).name, Path(p).read_bytes()) for p in paths]
+                    except (ValueError, OSError):
+                        st.error("리포트를 저장하지 못했습니다. 저장 폴더의 접근 권한을 확인해 주세요.")
+                for name, content in st.session_state.exports:
+                    extension = Path(name).suffix
+                    label, mime = {".pdf": ("PDF 리포트", "application/pdf"),
+                                   ".md": ("Markdown 리포트", "text/markdown")}[extension]
+                    st.download_button(label, content, file_name=name, mime=mime, key=name)
+                if st.session_state.exports and not any(n.endswith('.pdf') for n, _ in st.session_state.exports):
+                    st.caption('PDF용 한글 글꼴이나 변환 도구를 찾지 못해 Markdown만 만들었습니다.')
+            with st.popover("사용 안내", icon=':material/help:'):
+                st.caption("Claude 상담 켜짐 · 숫자는 내 컴퓨터의 검증된 자료에서만 가져옵니다" if use_model
+                           else "API 키 없이 사용 · 내 컴퓨터의 자료만으로 답합니다")
+                st.markdown("""
 **질문하기**
 
 **연도 + 품종 + 궁금한 항목**을 적어 주세요.
 예: ‘2020년 천혜향 생산량 알려줘’
 
-아래 **예시 질문**을 눌러 시작해도 됩니다.
-
-**예시 질문** 메뉴의 **무엇을 하고 싶으세요** 목록에서 원하는 일을 고른 뒤 질문을 눌러 보세요.
-API 키와 인터넷 없이도 동작합니다. Claude 키를 넣으면 규칙으로 못 알아들은 질문의 뜻 해석만 돕고, 숫자는 늘 내 컴퓨터 자료에서 나옵니다.
+위쪽 **예시 질문** 버튼에서 원하는 일을 고른 뒤 질문을 눌러 시작해도 됩니다.
+API 키와 인터넷 없이도 동작합니다. Claude 키를 넣으면 ‘창업하려는데 어떤 품종이 좋아?’처럼 편하게 물어도 조건을 되물으며 상담해 줍니다. 숫자는 늘 내 컴퓨터의 검증된 자료에서 나옵니다.
 
 표가 나온 뒤 ‘**그래프로 그려줘**’라고 입력하면 같은 항목·기간·수치를 그래프로 볼 수 있습니다.
+그래프가 나온 뒤 ‘**막대그래프로 바꿔줘**’처럼 말하면 모양(막대·꺾은선·영역·점)을 바꿉니다.
 
 **결과 저장**
 
-**리포트 만들기 → PDF 리포트** 또는 **Markdown 리포트**를 눌러 다운로드하세요.
+위쪽 **리포트** 버튼 → **리포트 만들기** → **PDF 리포트** 또는 **Markdown 리포트**를 눌러 다운로드하세요.
 **새 대화**를 누르면 이전 질문과 계산 조건이 지워집니다.
 
 답변은 **결론 → 세부 설명** 순서로 보여줍니다.
@@ -169,13 +183,17 @@ API 키와 인터넷 없이도 동작합니다. Claude 키를 넣으면 규칙�
 **참고하세요**
 
 - 생산량·면적 조회 기간: {periods}
-- 인사와 간단한 용어 설명을 지원합니다. 자유로운 잡담과 미래 예측은 지원하지 않습니다.
+- 미래 값 예측과 원인 단정은 하지 않습니다. 관세·농지 가격·스마트팜 설치비 같은 자료는 아직 없습니다.
 """.format(periods=lookup_periods(availability)))
-        with st.expander("예시 질문", expanded=True):
-            category = st.selectbox('무엇을 하고 싶으세요?', tuple(EXAMPLE_CATEGORIES), key='example_category')
-            for index, question in enumerate(EXAMPLE_CATEGORIES[category]):
-                if st.button(question, key=f'example_{category}_{index}', use_container_width=True):
-                    selected_question = question
+        profile = agent.profile_text() if isinstance(agent, ConsultAgent) else ''
+        if profile:
+            st.caption(':material/person: 알려 주신 조건 · ' + profile)
+
+    selected_question = landing.render(toolbar)
+    selected_question = chosen.get('question') or selected_question
+
+    selected_context = None
+    edited_index = None
 
     def show_artifacts(message):
         import pandas as pd
@@ -227,6 +245,11 @@ API 키와 인터넷 없이도 동작합니다. Claude 키를 넣으면 규칙�
                 units = unit_hints(message['content'])
                 if units:
                     st.caption(plain_tildes('단위 도움말: ' + ' · '.join(units)))
+                if message.get('options') and message_index == len(st.session_state.messages) - 1:
+                    with st.container(key=f'consult_options_{message_index}', horizontal=True, gap='small'):
+                        for option_index, option in enumerate(message['options']):
+                            if st.button(plain_tildes(option), key=f'option_{message_index}_{option_index}'):
+                                selected_question = option
                 if message.get('examples'):
                     st.caption('이렇게 물어보면 바로 답할 수 있어요. 눌러서 질문해 보세요.')
                     for example_index, example in enumerate(message['examples']):
@@ -301,7 +324,8 @@ API 키와 인터넷 없이도 동작합니다. Claude 키를 넣으면 규칙�
                 answer = friendly_failure(answer)
             st.session_state.messages.append({"role": "assistant", "content": answer,
                                               'artifacts': agent.last_artifacts, 'trace': agent.last_trace,
-                                              'followup': next_context, 'examples': examples})
+                                              'followup': next_context, 'examples': examples,
+                                              'options': list(getattr(agent, 'last_options', []))})
             request_scroll(len(st.session_state.messages) - 2)
         st.rerun()
 

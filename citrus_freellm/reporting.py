@@ -17,7 +17,7 @@ FONT_CANDIDATES = (
 )
 LABELS = {"verified_lookup": "원자료 조회", "verified_calculation": "원자료 기반 계산",
           "user_scenario": "사용자 가정 계산", "analysis_explanation": "기존 분석 근거 설명",
-          "local_tool": "도구 실행 결과"}
+          "local_tool": "도구 실행 결과", "consultation": "맞춤 상담 (검증 결과 요약)"}
 
 
 class PdfUnavailable(RuntimeError):
@@ -57,7 +57,7 @@ def markdown_report(chosen, now):
                 "", "실측 조회·기존 분석 요약·사용자 가정 계산을 구분한 로컬 리포트입니다.",
                 "모든 결과가 최신 자료이거나 실제 농가 실적이라는 뜻은 아닙니다."]
     for index, record in enumerate(chosen, 1):
-        markdown += ["", f"## 결과 {index} — {LABELS[record['kind']]}", "질문: " + record["question"],
+        markdown += ["", f"## 결과 {index} — {LABELS.get(record['kind'], '결과')}", "질문: " + record["question"],
                      "", record["text"]]
         if record.get("recorded_at"):
             markdown += ["", "결과 작성 시각: " + record["recorded_at"]]

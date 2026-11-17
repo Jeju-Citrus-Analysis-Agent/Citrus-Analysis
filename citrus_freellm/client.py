@@ -143,8 +143,8 @@ class ClaudeClient:
         calls = [{'id': b.id, 'type': 'function',
                   'function': {'name': b.name, 'arguments': json.dumps(b.input, ensure_ascii=False)}}
                  for b in response.content if b.type == 'tool_use']
-        if not text and not calls:
-            raise RuntimeError("Claude 답변이 비어 있습니다. 다시 질문하세요.")
+        # An empty end_turn is legal (e.g. after a tool loop whose text came earlier);
+        # callers decide what an empty reply means.
         reply = {'role': 'assistant', 'content': text or None,
                  '_claude_content': [b.to_dict() for b in response.content]}
         if calls:

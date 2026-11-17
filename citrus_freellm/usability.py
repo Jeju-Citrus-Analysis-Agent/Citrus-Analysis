@@ -193,6 +193,9 @@ def needs_examples(question, answer, agent):
     from .presentation import SUMMARY_HEADER, split_answer
     if re.search(r'보고서|리포트|/report', question):
         return False
+    if any(step.get('tool') in ('맞춤 상담', '그래프 모양 바꾸기') for step in agent.last_trace):
+        # A consultation already explains what is missing and offers its own choices.
+        return False
     if answer.startswith(SUMMARY_HEADER):
         # A conclusion can still be "nothing found" for the requested condition.
         return bool(re.search(r'자료가 없습니다|찾지 못했습니다', split_answer(answer)[0]))

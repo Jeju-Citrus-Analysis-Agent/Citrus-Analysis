@@ -12,14 +12,18 @@ GREETING = ('안녕하세요! 🍊 제주 감귤의 생산·가격·경영비 �
             '궁금한 걸 바로 적거나, 아래 추천 질문을 눌러 시작해 보세요.')
 SUGGESTIONS = ('2024년산 품종별 소득 비교해줘', '언제 팔면 비싼가?', '노지온주 손익분기 단가 보여줘')
 
-# Pretendard: 한글 웹 글꼴. 인터넷이 없으면 시스템 한글 글꼴로 대신한다.
-FONT = ('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/'
-        'pretendardvariable-dynamic-subset.min.css')
-FONT_STACK = ("'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, "
-              "'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif")
+# 글꼴: 카페24 써라운드(눈누 배포, 웹 사용 가능). 본문은 얇은 써라운드에어, 제목·굵은 글씨는 써라운드.
+# 받지 못하면 시스템 한글 글꼴로 대신한다.
+SSURROUND = 'https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2105_2@1.0/'
+FONT_FACES = ''.join(
+    "@font-face {font-family: 'Citrus Round'; font-weight: %s; font-display: swap; "
+    "src: url('%s%s.woff') format('woff');}\n" % (weights, SSURROUND, name)
+    for weights, name in (('100 500', 'Cafe24SsurroundAir'), ('600 900', 'Cafe24Ssurround')))
+FONT_STACK = ("'Citrus Round', 'Cafe24Ssurround', 'Apple SD Gothic Neo', 'Malgun Gothic', "
+              "'Noto Sans KR', sans-serif")
 
 CSS = '''<style>
-@import url("''' + FONT + '''");
+''' + FONT_FACES + '''
 :root {
   --citrus: #FFA02E; --citrus-deep: #F27405; --citrus-dark: #D95E00;
   --peel-light: #FFC266; --leaf: #2F9E44; --leaf-dark: #237A33;
@@ -30,7 +34,24 @@ CSS = '''<style>
 .stApp h1, .stApp h2, .stApp h3, .stApp td, .stApp th, .stApp [data-testid="stMarkdownContainer"] {
   font-family: var(--font);
 }
-.stApp p, .stApp li {letter-spacing: -.01em;}
+/* 숨 쉴 틈: 줄 간격과 문단·목록·표 사이를 넉넉하게 */
+.stApp p, .stApp li {letter-spacing: 0; line-height: 1.85;}
+.stApp [data-testid="stMarkdownContainer"] p {margin-bottom: .9rem;}
+.stApp [data-testid="stMarkdownContainer"] li {margin-bottom: .45rem;}
+.stApp [data-testid="stMarkdownContainer"] ul, .stApp [data-testid="stMarkdownContainer"] ol {margin: .4rem 0 1rem;}
+.stApp [data-testid="stMarkdownContainer"] table {margin: .6rem 0 1.2rem;}
+.stApp [data-testid="stMarkdownContainer"] td, .stApp [data-testid="stMarkdownContainer"] th {padding: .5rem .8rem;}
+.stApp [data-testid="stCaptionContainer"] {line-height: 1.7;}
+[data-testid="stChatMessage"] [data-testid="stVerticalBlock"] {gap: 1.1rem;}
+/* 사이드바는 쓰지 않는다: 도구는 로고 아래 한 줄에 둔다. */
+[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"], [data-testid="stExpandSidebarButton"] {display: none;}
+.st-key-citrus_toolbar {max-width: 860px; margin: .2rem auto 1.4rem;}
+.st-key-citrus_toolbar button {
+  background: rgba(255,255,255,.85); color: var(--ink); border: 0; border-radius: 999px;
+  padding: .3rem .95rem; min-height: 0; box-shadow: none;
+}
+.st-key-citrus_toolbar button:hover {background: var(--ink); color: var(--paper);}
+.st-key-citrus_toolbar button p {font-weight: 700; font-size: .9rem;}
 /* 본문은 감귤색, 사이드바는 그대로 둔다. */
 [data-testid="stMain"], [data-testid="stHeader"] {background: var(--citrus);}
 [data-testid="stMainBlockContainer"] {padding: 0 2rem 0; max-width: 1180px;}
@@ -44,7 +65,7 @@ CSS = '''<style>
 }
 .citrus-band {
   display: flex; align-items: baseline; gap: .9rem; flex-wrap: wrap;
-  max-width: 860px; margin: 0 auto 1.4rem; padding: .2rem 0 1rem; border-bottom: 2px solid var(--ink);
+  max-width: 860px; margin: 0 auto .8rem; padding: .2rem 0 1rem; border-bottom: 2px solid var(--ink);
 }
 .citrus-band .citrus-logo {padding-top: 1rem; font-size: clamp(1.15rem, 2vw, 1.5rem);}
 .citrus-band-sub {font-weight: 700; color: var(--ink); opacity: .8;}
@@ -53,7 +74,7 @@ CSS = '''<style>
   font-size: clamp(2.6rem, 7.2vw, 6rem); font-weight: 900; line-height: 1.08;
   letter-spacing: -.045em; margin: 0; padding: 0; color: var(--ink);
 }
-.citrus-hero h1 .sub {display: block; font-size: .62em; letter-spacing: -.035em;}
+.citrus-hero h1 .sub {display: block; margin-top: .45em; font-size: .62em; letter-spacing: -.035em;}
 .citrus-greeting {margin-top: 1.6rem; font-size: clamp(1rem, 1.6vw, 1.2rem); font-weight: 700; line-height: 1.75;}
 /* 추천 질문: 흰 알약 버튼 */
 .st-key-citrus_suggestions button {
@@ -84,9 +105,10 @@ CSS = '''<style>
 .st-key-citrus_prompt button:hover {background: var(--citrus-dark); color: var(--paper);}
 /* 대화: 감귤 그림 아래 흰 카드로 이어 붙인다. */
 [data-testid="stChatMessage"] {
-  max-width: 860px; margin: 0 auto .9rem; background: var(--paper);
-  border-radius: 18px; padding: 1rem 1.25rem; box-shadow: 0 2px 0 rgba(0,0,0,.06);
+  max-width: 860px; margin: 0 auto 1.4rem; background: var(--paper);
+  border-radius: 22px; padding: 1.5rem 1.75rem; box-shadow: 0 2px 0 rgba(0,0,0,.06);
 }
+[data-testid="stChatMessage"] + [data-testid="stChatMessage"] {margin-top: 1.4rem;}
 [data-testid="stBottom"], [data-testid="stBottom"] > div {background: var(--citrus);}
 [data-testid="stBottom"] [data-testid="stChatInput"] {
   max-width: 860px; margin: 0 auto; border: 2px solid var(--ink); border-radius: 14px; background: var(--paper);
@@ -138,8 +160,11 @@ def is_landing():
     return not st.session_state.get('messages')
 
 
-def render():
-    """Draw the hero above the conversation. Returns a question chosen or typed here, if any."""
+def render(tools=None):
+    """Draw the hero above the conversation. Returns a question chosen or typed here, if any.
+
+    `tools` draws the small button row (새 대화·예시 질문·리포트·사용 안내) under the logo.
+    """
     chosen = None
     st.html(CSS)
     if is_landing():
@@ -151,9 +176,13 @@ def render():
         # During a conversation the big hero would fill a whole screen above the
         # answers; keep a slim band instead. '새 대화' brings the full hero back.
         st.html(f'<div class="citrus-band"><span class="citrus-logo">{BRAND}</span>'
-                f'<span class="citrus-band-sub">{HEADLINE[0]} · {HEADLINE[1]}</span></div>')
+                f'<span class="citrus-band-sub">{HEADLINE[1]}</span></div>')
+        if tools:
+            tools()
         return None
-    st.html(f'<div class="citrus-logo">{BRAND}</div>')
+    st.html(f'<div class="citrus-logo citrus-logo-main">{BRAND}</div>')
+    if tools:
+        tools()
     st.html('<div class="citrus-hero"><h1>' + HEADLINE[0] + '<span class="sub">' + HEADLINE[1]
             + '</span></h1><div class="citrus-greeting">' + '<br>'.join(GREETING) + '</div></div>')
     with st.container(key='citrus_suggestions', horizontal=True, horizontal_alignment='center', gap='small'):

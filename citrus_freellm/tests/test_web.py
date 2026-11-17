@@ -93,7 +93,7 @@ class WebTests(unittest.TestCase):
                 self.assertEqual(sorted(Path(name).suffix for name, _ in app.session_state.exports), ['.md', '.pdf'])
                 body = next(data for name, data in app.session_state.exports if name.endswith('.md'))
                 self.assertIn('sha256'.encode(), body)
-                labels = {b.label for b in app.sidebar.get('download_button')}
+                labels = {b.label for b in app.get('download_button')}
                 self.assertEqual(labels, {'PDF 리포트', 'Markdown 리포트'})
 
     def test_sessions_do_not_share_agent(self):
@@ -252,8 +252,9 @@ class WebTests(unittest.TestCase):
 
     def test_complete_selector_is_inside_examples(self):
         app = self.app()
-        example = next(e for e in app.sidebar.expander if e.label == '예시 질문')
-        selector = example.selectbox[0]
+        # The sidebar is gone; examples live in the '예시 질문' popover of the toolbar.
+        self.assertEqual(len(app.sidebar), 0)
+        selector = next(b for b in app.selectbox if b.label == '무엇을 하고 싶으세요?')
         self.assertEqual(selector.label, '무엇을 하고 싶으세요?')
         self.assertEqual(len(selector.options), 9)
         self.assertNotIn('자료 문제 확인', selector.options)

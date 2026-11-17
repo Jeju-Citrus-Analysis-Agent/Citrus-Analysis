@@ -35,6 +35,7 @@ class Agent:
         self.scenario = None
         self.insight_ids = None
         self.results = []
+        self.recent_artifacts = []
 
     def reset(self):
         self.history.clear()
@@ -45,6 +46,7 @@ class Agent:
         self.results.clear()
         self.last_artifacts.clear()
         self.last_trace.clear()
+        self.recent_artifacts = []
 
     def remember(self, question, answer):
         answer = public_text(answer)
@@ -90,6 +92,24 @@ class Agent:
                            [{'path': result['source'], 'sha256': result['source_sha256']}])
 
     def ask(self, question):
+        """Answer, then remember the latest chart so '막대그래프로 바꿔줘' can restyle it."""
+        from .chart_style import is_restyle, requested_style, restyle_answer, styled, RESTYLE_TITLE
+        recent = getattr(self, 'recent_artifacts', [])
+        if recent and is_restyle(question):
+            kind = requested_style(question)
+            self.last_artifacts = styled(recent, kind)
+            self.last_trace = [{'tool': RESTYLE_TITLE, 'seconds': 0, 'steps': [], 'success': True}]
+            self.recent_artifacts = styled(recent, kind)
+            return self.remember(question, restyle_answer(kind, len(recent)))
+        answer = self.answer(question)
+        kind = requested_style(question)
+        if self.last_artifacts:
+            if kind:
+                self.last_artifacts = styled(self.last_artifacts, kind)
+            self.recent_artifacts = styled(self.last_artifacts, kind) if kind else list(self.last_artifacts)
+        return answer
+
+    def answer(self, question):
         """참조 코드 설치가 빠져도 대화를 유지하고 실행 조건을 안내한다."""
         self.last_artifacts = []
         self.last_trace = []

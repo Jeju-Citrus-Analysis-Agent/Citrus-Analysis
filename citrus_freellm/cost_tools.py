@@ -345,7 +345,8 @@ def cost_result(question, read_source, table, unavailable):
 
 # Analysis cards (notebooks 03·04) get a picture drawn from the same verified files.
 EXPLANATION_CHARTS = {
-    'cost_income': '품종별 소득 2016년부터 2024년까지',
+    # 카드 문장이 실질 소득(2020년 물가)을 말하므로 그래프도 실질 소득으로 맞춘다.
+    'cost_income': '품종별 실질 소득 2016년부터 2024년까지',
     'income_decomposition': '품종별 실질 소득 2016년부터 2024년까지',
     'breakeven': '노지온주 손익분기 단가',
     'inflation_real': '노지온주 실질 단가',

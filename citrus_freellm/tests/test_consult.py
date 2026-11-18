@@ -115,7 +115,8 @@ class ConsultWebTest(unittest.TestCase):
         with patch('citrus_freellm.client.claude_configured', return_value=True), \
                 patch('citrus_freellm.client.LazyFreeLLMClient.complete', side_effect=model.complete):
             app = AppTest.from_file(str(app_path), default_timeout=15).run()
-            app.chat_input[0].set_value('감귤 사업 유망한가요?').run()
+            from citrus_freellm.tests.test_web import ask
+            ask(app, '감귤 사업 유망한가요?')
             self.assertFalse(app.exception)
             self.assertIn('어떤 쪽인가요', app.chat_message[-1].markdown[0].value)
             choice = next(b for b in app.button if b.label == '창업·귀농')

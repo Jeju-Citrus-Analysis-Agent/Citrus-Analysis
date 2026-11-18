@@ -72,7 +72,7 @@ def ratio_basis(labels, series):
     return 'abs', '각 지표의 절댓값 최댓값 = 100 (음수 포함)'
 
 
-def combined_artifact(table_number, labels, series, kind):
+def combined_artifact(table_number, labels, series, kind, x_title='항목'):
     """One chart for several metrics: each metric rescaled to a shared % scale."""
     mode, basis = ratio_basis(labels, series)
     data = []
@@ -85,7 +85,7 @@ def combined_artifact(table_number, labels, series, kind):
                          RATIO: None if value is None or not base else round(value / base * 100, 1),
                          '원래 값': value})
     return {'type': 'chart', 'title': f'앞선 표 {table_number} · 지표 {len(series)}개 비교',
-            'data': data, 'x': '항목', 'y': RATIO, 'series': '지표',
+            'data': data, 'x': '항목', 'x_title': x_title, 'y': RATIO, 'series': '지표',
             'unit': f'% (기준: {basis})', 'basis': basis, 'chart_kind': kind}
 
 
@@ -115,12 +115,14 @@ def table_artifacts(text, question):
                 dimensions = dimensions[:size]
                 break
         labels = [' · '.join(row[i] for i in dimensions) for row in rows]
+        # The axis keeps the table's own column name (품종, 산지연도…), not a generic '항목'.
+        x_title = ' · '.join(header[i] for i in dimensions) or '항목'
         # Preserve repeated categories as separate observations, never sum them.
         if len(set(labels)) != len(labels):
             labels = [f'{label} ({i}행)' for i, label in enumerate(labels, 1)]
         if len(measures) > 1:
             artifacts.append(combined_artifact(table_number, labels,
-                                               [(header[i], values) for i, values in measures], kind))
+                                               [(header[i], values) for i, values in measures], kind, x_title))
             continue
         for index, values in measures:
             metric = header[index]
@@ -128,7 +130,7 @@ def table_artifacts(text, question):
             artifacts.append({
                 'type': 'chart', 'title': f'앞선 표 {table_number} · {metric}',
                 'data': [{'항목': label, metric: value} for label, value in zip(labels, values)],
-                'x': '항목', 'y': metric, 'unit': unit[1] if unit else '표에 표시된 단위',
+                'x': '항목', 'x_title': x_title, 'y': metric, 'unit': unit[1] if unit else '표에 표시된 단위',
                 'chart_kind': kind,
             })
     return artifacts

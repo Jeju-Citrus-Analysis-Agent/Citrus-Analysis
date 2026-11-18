@@ -18,11 +18,10 @@ from citrus_freellm.client import LazyFreeLLMClient, claude_configured
 from citrus_freellm.consult import ConsultAgent
 from citrus_freellm.reporting import save_report
 from citrus_freellm.example_questions import EXAMPLE_CATEGORIES
-from citrus_freellm.presentation import split_answer
+from citrus_freellm.presentation import split_answer, SUMMARY_HEADER
 from citrus_freellm.navigation import question_anchor, scroll_script, SCROLL_FRAME_HEIGHT
 from citrus_freellm.usability import (availability_signature, source_availability, snapshot_context,
-                                     restore_context, followup_context, chart_followup,
-                                     comparison_followup, number_hints, unit_hints,
+                                     restore_context, followup_context, number_hints, unit_hints,
                                      needs_examples, related_examples, friendly_failure)
 
 
@@ -32,6 +31,22 @@ def available_sources(signature):
     return source_availability()
 
 
+# Categorical colours in a fixed order (validated for colour-blind separation, dataviz
+# reference palette). Varieties always keep the same colour across every chart.
+SERIES_COLORS = ('#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948')
+VARIETY_ORDER = ('노지온주', '하우스온주', '월동온주', '한라봉', '천혜향', '레드향', '황금향')
+SINGLE_COLOR = SERIES_COLORS[1]  # one series: the citrus orange
+
+
+def series_scale(order):
+    import altair as alt
+    if set(order) <= set(VARIETY_ORDER):
+        return alt.Scale(domain=list(VARIETY_ORDER), range=list(SERIES_COLORS[:len(VARIETY_ORDER)]))
+    if len(order) <= len(SERIES_COLORS):
+        return alt.Scale(domain=order, range=list(SERIES_COLORS[:len(order)]))
+    return alt.Undefined
+
+
 def static_chart(frame, artifact):
     # st.line_chart and friends always zoom on the mouse wheel, which hijacks
     # page scrolling. Plain Altair charts are not interactive unless asked.
@@ -39,27 +54,33 @@ def static_chart(frame, artifact):
     series = artifact.get('series')
     columns = [artifact['x'], artifact['y']] + ([series, '원래 값'] if series else [])
     data = frame[columns].set_axis(['x', 'y'] + (['s', 'v'] if series else []), axis=1)
+    if series and data['s'].nunique() == 1:
+        # One metric needs no legend: the caption above the chart names it.
+        series = None
+        data = data[['x', 'y']]
     chart = alt.Chart(data)
     points = data['x'].nunique()
     kind = artifact.get('chart_kind')
     if kind == 'bar':
-        chart = chart.mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+        chart = chart.mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4, color=SINGLE_COLOR)
     elif kind == 'area':
-        chart = chart.mark_area(opacity=.45, line=True, point=True)
+        chart = chart.mark_area(opacity=.45, line=True, point=True, color=SINGLE_COLOR)
     elif kind == 'point' or points == 1:
-        chart = chart.mark_point(filled=True, size=90)
+        chart = chart.mark_point(filled=True, size=90, color=SINGLE_COLOR)
     else:
-        chart = chart.mark_line(point=True, strokeWidth=2.5)
+        chart = chart.mark_line(point=True, strokeWidth=2, color=SINGLE_COLOR)
     # '값' alone says nothing; show the unit there instead.
     y_title = f"값 ({artifact['unit']})" if artifact['y'] == '값' and artifact.get('unit') else artifact['y']
-    tooltip = [alt.Tooltip('x:O', title=artifact['x']), alt.Tooltip('y:Q', title=artifact['y'], format=',')]
-    encoding = {'x': alt.X('x:O', sort=None, title=artifact['x'], axis=alt.Axis(labelAngle=0 if points <= 8 else -45)),
+    x_title = artifact.get('x_title', artifact['x'])
+    tooltip = [alt.Tooltip('x:O', title=x_title), alt.Tooltip('y:Q', title=artifact['y'], format=',')]
+    encoding = {'x': alt.X('x:O', sort=None, title=x_title, axis=alt.Axis(labelAngle=0 if points <= 8 else -45)),
                 # Several series never stack: each mark keeps its own value.
                 'y': alt.Y('y:Q', title=y_title, stack=None)}
     if series:
         # Several metrics share one % axis; colour tells them apart, bars sit side by side.
         order = list(dict.fromkeys(data['s']))
-        encoding['color'] = alt.Color('s:N', sort=order, title=series, legend=alt.Legend(orient='bottom'))
+        encoding['color'] = alt.Color('s:N', sort=order, title=series, scale=series_scale(order),
+                                      legend=alt.Legend(orient='bottom'))
         if kind == 'bar':
             encoding['xOffset'] = alt.XOffset('s:N', sort=order)
         tooltip = [tooltip[0], alt.Tooltip('s:N', title=series), tooltip[1],
@@ -112,8 +133,12 @@ def main():
     }
     [class*="st-key-edit_action_"] button p {font-size: .75rem;}
     [class*="st-key-edit_action_"] button:hover {background: #f1f5f9;}
-    [data-testid="stMain"] {overflow-anchor: none; scroll-behavior: auto;}
+    .stMain, [data-testid="stMain"] {overflow-anchor: none; scroll-behavior: auto;}
     </style>''', unsafe_allow_html=True)
+    if not st.session_state.get('entered'):
+        # A splash screen first: clicking the tangerine opens the main page.
+        landing.splash()
+        return
     use_model = claude_configured()
     # Agent를 전역 캐시에 두면 다른 브라우저 세션과 대화가 섞일 수 있다.
     if "agent" not in st.session_state or isinstance(st.session_state.agent, ConsultAgent) != use_model:
@@ -231,10 +256,12 @@ API 키와 인터넷 없이도 동작합니다. Claude 키를 넣으면 ‘창�
                 hints = number_hints(summary)
                 if hints:
                     st.caption(plain_tildes('숫자를 쉽게 읽으면: ' + ' · '.join(hints)), help='원래 값과 단위는 그대로 유지합니다.')
-            if details and len(details) > LONG_DETAILS:
+            # A chart follow-up quotes the whole earlier answer: fold it, the reader just saw it.
+            quoted = SUMMARY_HEADER in details
+            if details and (len(details) > LONG_DETAILS or quoted):
                 # Long explanations: conclusion and picture first, the evidence one click away.
                 show_artifacts(message)
-                with st.expander('자세히 보기 (표·근거·출처)'):
+                with st.expander('자세히 보기 (그래프의 기준이 된 앞선 답변)' if quoted else '자세히 보기 (표·근거·출처)'):
                     st.markdown(plain_tildes(details))
             elif details:
                 st.markdown(plain_tildes(details))
@@ -274,7 +301,10 @@ API 키와 인터넷 없이도 동작합니다. Claude 키를 넣으면 ‘창�
             else:
                 components.html(scroll_script(target['index'], target['nonce']), height=SCROLL_FRAME_HEIGHT)
 
-    prompt = st.chat_input("감귤 데이터에 관해 질문해 주세요") or selected_question
+    # On the landing page the hero input is the only one. Rendering st.chat_input there
+    # (even hidden) makes Streamlit stick the page to the bottom, below the hero.
+    typed = None if landing.is_landing() else st.chat_input("감귤 데이터에 관해 질문해 주세요")
+    prompt = typed or selected_question
     if prompt:
         if prompt.strip() == "/reset":
             agent.reset()
@@ -321,7 +351,7 @@ API 키와 인터넷 없이도 동작합니다. Claude 키를 넣으면 ‘창�
             next_context = followup_context(prompt, agent, availability) if created_result else None
             examples = related_examples(prompt, availability) if needs_examples(prompt, answer, agent) else []
             if examples:
-                answer = friendly_failure(answer)
+                answer = friendly_failure(answer, prompt)
             st.session_state.messages.append({"role": "assistant", "content": answer,
                                               'artifacts': agent.last_artifacts, 'trace': agent.last_trace,
                                               'followup': next_context, 'examples': examples,

@@ -12,17 +12,43 @@ except ImportError:
 APP = Path(__file__).resolve().parents[1] / "web.py"
 
 
+def enter(app):
+    """Click the tangerine on the splash screen, if it is showing."""
+    button = next((b for b in app.button if b.key == 'citrus_enter_button'), None)
+    return button.click().run() if button else app
+
+
+def ask(app, question):
+    """Type a question the way a person would: the hero box first, the bottom chat box after."""
+    enter(app)
+    if app.chat_input:
+        return app.chat_input[0].set_value(question).run()
+    # The landing page has no chat box (it would pin the page to the bottom).
+    next(t for t in app.text_input if t.label == '질문').set_value(question)
+    return next(b for b in app.button if b.label == '질문하기').click().run()
+
+
 @unittest.skipIf(AppTest is None, "requirements-ui.txt 설치 시 UI 검사 가능")
 class WebTests(unittest.TestCase):
     def app(self):
-        return AppTest.from_file(str(APP), default_timeout=15).run()
+        return enter(AppTest.from_file(str(APP), default_timeout=15).run())
+
+    def test_splash_tangerine_opens_main_page(self):
+        app = AppTest.from_file(str(APP), default_timeout=15).run()
+        self.assertFalse(app.exception)
+        self.assertEqual([b.key for b in app.button], ['citrus_enter_button'])
+        self.assertFalse(any(t.label == '질문' for t in app.text_input), 'no question box before entering')
+        enter(app)
+        self.assertFalse(app.exception)
+        self.assertTrue(any(t.label == '질문' for t in app.text_input))
+        self.assertFalse(any(b.key == 'citrus_enter_button' for b in app.button))
 
     def test_scroll_iframe_height_is_positive_after_questions_and_edit(self):
         import streamlit as st
         app = self.app()
         with patch('streamlit.iframe', wraps=st.iframe) as iframe:
-            app.chat_input[0].set_value('2020년 천혜향 생산량').run()
-            app.chat_input[0].set_value('그래프로 그려줘').run()
+            ask(app, '2020년 천혜향 생산량')
+            ask(app, '그래프로 그려줘')
             next(b for b in app.button if b.key == 'edit_0').click().run()
         self.assertFalse(app.exception)
         self.assertGreaterEqual(iframe.call_count, 3)
@@ -32,9 +58,9 @@ class WebTests(unittest.TestCase):
         import streamlit as st
         app = self.app()
         with patch('streamlit.iframe', wraps=st.iframe) as iframe:
-            app.chat_input[0].set_value('2020년 천혜향 생산량').run()
+            ask(app, '2020년 천혜향 생산량')
             first = iframe.call_args.args[0]
-            app.chat_input[0].set_value('그래프로 그려줘').run()
+            ask(app, '그래프로 그려줘')
             second = iframe.call_args.args[0]
         self.assertIn("getElementById('question-0')", first)
         self.assertIn("getElementById('question-2')", second)
@@ -45,7 +71,7 @@ class WebTests(unittest.TestCase):
     def test_chat_rerun_does_not_repeat_question(self):
         app = self.app()
         self.assertFalse(app.exception)
-        app.chat_input[0].set_value("날씨는 영향이 있나?").run()
+        ask(app, "날씨는 영향이 있나?")
         self.assertFalse(app.exception)
         self.assertEqual(len(app.chat_message), 2)
         self.assertIn("상관이 인과", app.chat_message[1].markdown[0].value)
@@ -57,7 +83,7 @@ class WebTests(unittest.TestCase):
         with patch('citrus_freellm.navigation.scroll_script', wraps=scroll_script) as scroll:
             app = self.app()
             for index, question in enumerate(('2020년 천혜향 생산량', '그래프로 그려줘', '그러면 2019년은?')):
-                app.chat_input[0].set_value(question).run()
+                ask(app, question)
                 self.assertFalse(app.exception)
                 scroll.assert_called_with(index * 2, index + 1)
                 self.assertEqual(scroll.call_count, index + 1)
@@ -67,7 +93,7 @@ class WebTests(unittest.TestCase):
     def test_default_mode_queries_production_without_model(self):
         app = self.app()
         with patch("citrus_freellm.client.LazyFreeLLMClient.complete", side_effect=AssertionError("external call")) as complete:
-            app.chat_input[0].set_value("2019년과 2020년 천혜향 생산량 비교").run()
+            ask(app, "2019년과 2020년 천혜향 생산량 비교")
         self.assertFalse(app.exception)
         self.assertIn("18,044", app.chat_message[-1].markdown[0].value)
         self.assertIn("+3.16%", app.chat_message[-1].markdown[0].value)
@@ -75,8 +101,8 @@ class WebTests(unittest.TestCase):
 
     def test_scenario_followup_and_reset(self):
         app = self.app()
-        app.chat_input[0].set_value("판매량 1000kg, 단가 4000원, 총비용 300만원, 단가 10% 하락 이익은?").run()
-        app.chat_input[0].set_value("그럼 단가 20% 하락이면?").run()
+        ask(app, "판매량 1000kg, 단가 4000원, 총비용 300만원, 단가 10% 하락 이익은?")
+        ask(app, "그럼 단가 20% 하락이면?")
         self.assertIn("200,000", app.chat_message[-1].markdown[0].value)
         next(b for b in app.button if b.label == "새 대화").click().run()
         self.assertEqual(app.session_state.agent.results, [])
@@ -85,7 +111,7 @@ class WebTests(unittest.TestCase):
 
     def test_report_downloads_retain_source_and_result(self):
         app = self.app()
-        app.chat_input[0].set_value("언제 팔면 비싼가?").run()
+        ask(app, "언제 팔면 비싼가?")
         with tempfile.TemporaryDirectory(dir=APP.parent / "tests") as directory:
             with patch("citrus_freellm.reporting.OUTPUT", Path(directory)):
                 next(b for b in app.button if b.label == "리포트 만들기").click().run()
@@ -98,14 +124,14 @@ class WebTests(unittest.TestCase):
 
     def test_sessions_do_not_share_agent(self):
         first, second = self.app(), self.app()
-        first.chat_input[0].set_value("날씨는 영향이 있나?").run()
+        ask(first, "날씨는 영향이 있나?")
         self.assertEqual(len(second.session_state.agent.results), 0)
         self.assertIsNot(first.session_state.agent, second.session_state.agent)
 
     def test_connection_error_keeps_conversation_and_hides_details(self):
         app = self.app()
         with patch("citrus_freellm.agent.Agent.ask", side_effect=RuntimeError("private-test-secret")):
-            app.chat_input[0].set_value("질문").run()
+            ask(app, "질문")
         self.assertFalse(app.exception)
         text = app.chat_message[-1].markdown[0].value
         self.assertIn("입력한 조건", text)
@@ -129,7 +155,7 @@ class WebTests(unittest.TestCase):
 
     def test_conclusion_and_details_are_visible_in_order(self):
         app = self.app()
-        app.chat_input[0].set_value('2019년과 2020년 천혜향 생산량 비교').run()
+        ask(app, '2019년과 2020년 천혜향 생산량 비교')
         message = app.chat_message[-1]
         self.assertTrue(message.markdown[0].value.startswith('**결론**'))
         self.assertIn('+3.16%', message.markdown[0].value)
@@ -141,7 +167,7 @@ class WebTests(unittest.TestCase):
 
     def test_long_explanation_shows_conclusion_and_chart_before_folded_details(self):
         app = self.app()
-        app.chat_input[0].set_value('가격이 오른 건 물가 때문이야?').run()
+        ask(app, '가격이 오른 건 물가 때문이야?')
         message = app.chat_message[-1]
         self.assertTrue(message.markdown[0].value.startswith('**결론**'))
         folded, = message.expander
@@ -151,12 +177,12 @@ class WebTests(unittest.TestCase):
 
     def test_followup_questions_work_without_action_buttons(self):
         app = self.app()
-        app.chat_input[0].set_value('2019년과 2020년 천혜향 생산량 비교').run()
+        ask(app, '2019년과 2020년 천혜향 생산량 비교')
         self.assertFalse(any(b.label in {'생산량 그래프로 보기', '다른 연도와 비교'} for b in app.button))
-        app.chat_input[0].set_value('그래프로 그려줘').run()
+        ask(app, '그래프로 그려줘')
         self.assertFalse(app.exception)
         self.assertEqual(len(app.session_state.messages[-1]['artifacts'][0]['data']), 2)
-        app.chat_input[0].set_value('2020년과 2018년 천혜향 생산량 비교').run()
+        ask(app, '2020년과 2018년 천혜향 생산량 비교')
         self.assertFalse(app.exception)
         self.assertIn('2020년과 2018년 천혜향', app.session_state.messages[-2]['content'])
         self.assertIn('15,943', app.chat_message[-1].markdown[0].value)
@@ -166,8 +192,8 @@ class WebTests(unittest.TestCase):
 
     def test_typed_followup_charts_previous_table(self):
         app = self.app()
-        app.chat_input[0].set_value('2019년과 2020년 천혜향 생산량 비교').run()
-        app.chat_input[0].set_value('그래프로 그려줘').run()
+        ask(app, '2019년과 2020년 천혜향 생산량 비교')
+        ask(app, '그래프로 그려줘')
         self.assertFalse(app.exception)
         message = app.session_state.messages[-1]
         self.assertIn('앞선 답변의 표', message['content'])
@@ -180,7 +206,7 @@ class WebTests(unittest.TestCase):
     def test_inline_edit_replaces_question_and_cancel_keeps_history(self):
         app = self.app()
         original = '2020년 천혜향 생산량'
-        app.chat_input[0].set_value(original).run()
+        ask(app, original)
         next(b for b in app.button if b.key == 'edit_0').click().run()
         self.assertEqual(app.text_area[0].value, original)
         self.assertEqual(app.chat_message[0].text_area[0].value, original)
@@ -198,9 +224,9 @@ class WebTests(unittest.TestCase):
 
     def test_edit_uses_original_scenario_and_removes_obsolete_answers(self):
         app = self.app()
-        app.chat_input[0].set_value('판매량 1000kg, 단가 4000원, 총비용 300만원, 단가 10% 하락 이익은?').run()
-        app.chat_input[0].set_value('그럼 단가 20% 하락이면?').run()
-        app.chat_input[0].set_value('판매량 2000kg, 단가 5000원, 총비용 300만원이면 이익은?').run()
+        ask(app, '판매량 1000kg, 단가 4000원, 총비용 300만원, 단가 10% 하락 이익은?')
+        ask(app, '그럼 단가 20% 하락이면?')
+        ask(app, '판매량 2000kg, 단가 5000원, 총비용 300만원이면 이익은?')
         next(b for b in app.button if b.key == 'edit_2').click().run()
         app.text_area[0].set_value('그럼 단가 20% 하락이면?')
         next(b for b in app.button if b.label == '저장하고 답변 받기').click().run()
@@ -216,16 +242,16 @@ class WebTests(unittest.TestCase):
         self.assertFalse(any('조회 가능 기간' in c.value for c in app.caption))
         self.assertFalse(any(e.label in {'조회 가능한 자료', '숫자·단위 도움말', '도구별 쉬운 질문'} for e in app.expander))
         self.assertFalse(any('단위 도움말:' in c.value for c in app.caption))
-        app.chat_input[0].set_value('2020년 천혜향 생산량').run()
+        ask(app, '2020년 천혜향 생산량')
         self.assertTrue(any('1톤 = 1,000kg' in c.value for c in app.chat_message[-1].caption))
         self.assertTrue(any('1만 8,614톤' in c.value for c in app.chat_message[-1].caption))
-        app.chat_input[0].set_value('그래프로 그려줘').run()
+        ask(app, '그래프로 그려줘')
         self.assertFalse(app.exception)
         self.assertEqual(len(app.session_state.messages[-1]['artifacts'][0]['data']), 1)
 
     def test_empty_edit_does_not_execute_and_reset_closes_editor(self):
         app = self.app()
-        app.chat_input[0].set_value('2020년 천혜향 생산량').run()
+        ask(app, '2020년 천혜향 생산량')
         next(b for b in app.button if b.key == 'edit_0').click().run()
         app.text_area[0].set_value('  ')
         next(b for b in app.button if b.label == '저장하고 답변 받기').click().run()

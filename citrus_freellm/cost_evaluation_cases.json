@@ -1,6 +1,6 @@
 [
   {"id": "cost_income_one_variety", "question": "노지온주 경영비 알려줘", "route": "cost",
-   "include": ["104.6", "167.0", "검산", "순이익이 아닙니다"]},
+   "include": ["104.6", "167.0", "계산 확인", "순이익이 아닙니다"]},
   {"id": "cost_income_rank_year", "question": "2024년산 품종별 소득 비교해줘", "route": "cost",
    "include": ["천혜향 1,366.9", "노지온주 286.6", "순위"]},
   {"id": "cost_income_real", "question": "천혜향 2020년부터 2024년까지 실질 소득 보여줘", "route": "cost",

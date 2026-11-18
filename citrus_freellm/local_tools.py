@@ -45,6 +45,10 @@ DATASETS = {
 }
 
 
+# 제주농산물수급관리센터에서 받은 자료와 그로부터 만든 파일 (이용약관상 저장소·제출본에서 제외).
+JASDC_DERIVED = re.compile(r'citrus_[a-z_]+\.csv|noji_[a-z0-9_]+\.csv|varieties_summary|external/cost/')
+
+
 class ToolUnavailable(ValueError):
     """A user-readable explanation of a missing condition or unusable source."""
 
@@ -78,7 +82,12 @@ def read_source(relative):
     if not path.is_relative_to(ROOT.resolve()):
         raise ToolUnavailable('등록된 자료만 읽을 수 있습니다.')
     if not path.is_file():
-        raise ToolUnavailable(f'필요한 자료가 없습니다: {relative}')
+        message = f'필요한 자료가 없습니다: {relative}.'
+        if JASDC_DERIVED.search(str(relative)):
+            # Kept out of the repository and the submission archive under the centre's terms.
+            message += (' 제주농산물수급관리센터 자료는 이용약관상 함께 배포하지 않습니다.'
+                        ' 실행 매뉴얼의 「데이터 준비」 절차로 받은 뒤 다시 질문해 주세요.')
+        raise ToolUnavailable(message)
     raw = path.read_bytes()
     try:
         frame = pd.read_csv(io.BytesIO(raw), encoding='utf-8-sig')

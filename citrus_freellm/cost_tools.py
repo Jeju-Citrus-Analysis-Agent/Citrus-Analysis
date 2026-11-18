@@ -174,7 +174,7 @@ def income_lookup(plan, read_source, table, unavailable):
             .groupby(out['산지연도']).rank(ascending=False, method='min').astype(int))
     summary = income_summary(out, rows, values, metrics, rank_metric, unit)
     text = ('**표준소득표 조회**' + (' (CPI로 2020년 물가 기준 실질화)' if plan['real'] else '') + '\n\n' + table(out, limit=70)
-            + '\n\n검산: 모든 행에서 소득 = 총수입 − 경영비, 순수익 = 총수입 − 생산비(±1원), 만원 열 = 원 열 ÷ 10,000을 확인했습니다.'
+            + '\n\n계산 확인: 모든 행에서 소득(총수입 − 경영비)과 순수익(총수입 − 생산비)이 표의 값과 맞는지 확인했습니다.'
             + '\n\n' + BASIS_NOTE
             + '\n\n이 결과의 해석(품종 순위 변화·실질 소득 추세·평균 농가와의 차이)은 ‘경영비 빼면 어떤 품종이 좋아?’, '
               '‘하우스온주 소득이 왜 줄었어?’처럼 물어보면 분석 근거로 설명합니다.')
@@ -345,7 +345,8 @@ def cost_result(question, read_source, table, unavailable):
 
 # Analysis cards (notebooks 03·04) get a picture drawn from the same verified files.
 EXPLANATION_CHARTS = {
-    'cost_income': '품종별 소득 2016년부터 2024년까지',
+    # 카드 문장이 실질 소득(2020년 물가)을 말하므로 그래프도 실질 소득으로 맞춘다.
+    'cost_income': '품종별 실질 소득 2016년부터 2024년까지',
     'income_decomposition': '품종별 실질 소득 2016년부터 2024년까지',
     'breakeven': '노지온주 손익분기 단가',
     'inflation_real': '노지온주 실질 단가',

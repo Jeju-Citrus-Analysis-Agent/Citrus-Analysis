@@ -182,7 +182,7 @@ EXTRA_EXAMPLES = ('2020년 천혜향 생산량 알려줘', '2019년과 2020년 �
 DEFAULT_EXAMPLES = ('2020년 천혜향 생산량 알려줘', '천혜향 생산량을 그래프로 보여줘', '어떤 데이터가 있어?')
 TOPICS = {
     '생산': r'생산|수확|얼마나\s*났|많이\s*났', '면적': r'면적', '날씨': r'날씨|기온|강수|비가|더웠|추웠',
-    '수출': r'수출', '가공': r'가공', '가격': r'가격|단가|시세|비싸|싸게|팔면|출하',
+    '수출': r'수출', '가공': r'가공', '가격': r'가격|단가|시세|귤\s*값|비싸|싸게|팔면|출하',
     '이익': r'이익|수익|손익|적자|흑자|판매량', '소득': r'소득|경영비|비용|농가', '물가': r'물가|CPI|실질',
     '그래프': r'그래프|차트|그려', '문서': r'문서', '자료': r'자료|데이터|빠진|누락|중복', '매출': r'매출|면적당',
 }
@@ -227,6 +227,9 @@ def related_examples(question, availability, limit=3):
         asked = [int(y) for y in re.findall(r'(?<!\d)((?:19|20)\d{2})(?!\d)', question) if int(y) in years]
         year = asked[0] if asked else years[-1]
         pool.insert(0, f'{year}년 {variety} 생산량 알려줘')
+    if FORECAST.search(question):
+        # No forecasts: offer the past record instead (seasonal prices, breakeven), ahead of ties.
+        pool = list(PAST_INSTEAD) + pool
     asked_topics = {name for name, pattern in TOPICS.items() if re.search(pattern, question)}
 
     def score(candidate):
@@ -246,10 +249,14 @@ def related_examples(question, availability, limit=3):
 
 APOLOGY = '죄송해요, 이 질문은 제가 바로 답하기 어려워요. 🍊 아래 예시 질문을 참고해 주세요.'
 # Reasons worth keeping: what data exists, not instructions on how to phrase a question.
+# Future values are out of scope on purpose; say so instead of a bare apology.
+FORECAST = re.compile(r'내년|내후년|다음\s*해|앞으로|미래|예측|전망|예상|될\s*까|오를\s*까|내릴\s*까|떨어질\s*까')
+PAST_INSTEAD = ('언제 팔면 비싼가?', '노지온주 손익분기 단가 보여줘')
+FORECAST_REASON = '미래 값(내년 가격·생산량 등)은 예측하지 않아요. 지난 기록과 계절별 흐름은 보여 드릴 수 있어요.'
 SPECIFIC_REASON = re.compile(r'(?:19|20)\d{2}\s*~\s*(?:19|20)\d{2}년산?만|자료에 없는 연도|없는 해:|파일이 없|자료가 없습니다')
 
 
-def friendly_failure(answer):
+def friendly_failure(answer, question=''):
     """Replace stiff 'specify the variety/year' templates with a short apology.
 
     The original wording stays in the agent's history; only what the reader sees changes.
@@ -257,4 +264,6 @@ def friendly_failure(answer):
     """
     lines = [line.strip() for line in answer.splitlines() if line.strip()]
     reasons = [line for line in lines if SPECIFIC_REASON.search(line)]
+    if not reasons and FORECAST.search(question):
+        reasons = [FORECAST_REASON]
     return APOLOGY + ('\n\n' + reasons[0] if reasons else '')

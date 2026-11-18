@@ -3,6 +3,8 @@
 대화가 시작돼도 이 화면을 유지하고, 질문과 답변은 감귤 그림 아래에 이어서 보여 준다.
 사이드바는 건드리지 않는다.
 """
+import base64
+
 import streamlit as st
 
 BRAND = '감귤의 신(神)'
@@ -34,6 +36,9 @@ CSS = '''<style>
 .stApp h1, .stApp h2, .stApp h3, .stApp td, .stApp th, .stApp [data-testid="stMarkdownContainer"] {
   font-family: var(--font);
 }
+/* 팝오버(예시 질문·리포트·사용 안내)는 .stApp 바깥에 그려지므로 따로 지정한다. */
+[data-testid="stPopoverBody"], [data-testid="stPopoverBody"] :is(p, li, label, button, input, div):not([data-testid="stIconMaterial"]),
+[role="listbox"] li, [role="option"] {font-family: var(--font);}
 /* 숨 쉴 틈: 줄 간격과 문단·목록·표 사이를 넉넉하게 */
 .stApp p, .stApp li {letter-spacing: 0; line-height: 1.85;}
 .stApp [data-testid="stMarkdownContainer"] p {margin-bottom: .9rem;}
@@ -52,8 +57,10 @@ CSS = '''<style>
 }
 .st-key-citrus_toolbar button:hover {background: var(--ink); color: var(--paper);}
 .st-key-citrus_toolbar button p {font-weight: 700; font-size: .9rem;}
-/* 본문은 감귤색, 사이드바는 그대로 둔다. */
-[data-testid="stMain"], [data-testid="stHeader"] {background: var(--citrus);}
+/* 본문은 감귤색. Streamlit 1.65부터 본문은 data-testid 대신 class="stMain"이라 둘 다 지정한다. */
+.stApp, .stMain, [data-testid="stMain"] {background: var(--citrus);}
+/* Streamlit 기본 헤더(Deploy·메뉴, 높이 60px)는 쓰지 않는다. 남겨 두면 검은 띠와 로고를 덮는다. */
+[data-testid="stHeader"] {display: none;}
 [data-testid="stMainBlockContainer"] {padding: 0 2rem 0; max-width: 1180px;}
 .citrus-topbar {
   margin: 0 -2rem 0; padding: .55rem 1rem; background: var(--ink); color: var(--paper);
@@ -88,11 +95,13 @@ CSS = '''<style>
 /* 입력칸과 질문하기 버튼은 같은 높이(--prompt-h)를 쓴다. */
 .st-key-citrus_prompt {--prompt-h: 3.9rem; max-width: 780px; margin: 2rem auto 0;}
 .st-key-citrus_prompt [data-testid="stForm"] {border: 0; padding: 0;}
-.st-key-citrus_prompt [data-baseweb="input"] {
+/* 1.65부터 입력칸 바깥 틀은 data-baseweb="input" 대신 stTextInputRootElement다. */
+.st-key-citrus_prompt [data-baseweb="input"], .st-key-citrus_prompt [data-testid="stTextInputRootElement"] {
   box-sizing: border-box; height: var(--prompt-h);
   border: 2px solid var(--ink); border-radius: 16px; background: var(--paper);
 }
-.st-key-citrus_prompt [data-baseweb="input"] > div, .st-key-citrus_prompt input {
+.st-key-citrus_prompt [data-baseweb="input"] > div,
+.st-key-citrus_prompt [data-testid="stTextInputRootElement"] > div, .st-key-citrus_prompt input {
   height: 100%; border: 0; border-radius: 14px; background: var(--paper);
 }
 .st-key-citrus_prompt input {padding: 0 1.2rem; font-size: 1.15rem; font-weight: 500; color: var(--ink);}
@@ -114,7 +123,7 @@ CSS = '''<style>
   max-width: 860px; margin: 0 auto; border: 2px solid var(--ink); border-radius: 14px; background: var(--paper);
 }
 .citrus-art {margin: 1.5rem -2rem 1.5rem; line-height: 0;}
-.citrus-art svg {display: block; width: 100%; height: auto;}
+.citrus-art img {display: block; width: 100%; height: auto;}
 @media (max-width: 640px) {
   [data-testid="stMainBlockContainer"] {padding: 0 1rem;}
   .citrus-topbar, .citrus-art {margin-left: -1rem; margin-right: -1rem;}
@@ -122,8 +131,8 @@ CSS = '''<style>
 </style>'''
 
 # 지구본 자리에 놓는 감귤. 화면 아래에 윗부분만 떠오르도록 원의 중심을 아래에 둔다.
-CITRUS_ART = '''<div class="citrus-art" aria-hidden="true">
-<svg viewBox="0 0 1200 380" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg">
+# st.html은 <svg>를 지워 버리므로(1.65 확인) 그림 파일(data URI)로 넣는다.
+CITRUS_SVG = '''<svg viewBox="0 0 1200 380" preserveAspectRatio="xMidYMax meet" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <radialGradient id="peel" cx="42%" cy="18%" r="75%">
       <stop offset="0" stop-color="#FFB347"/><stop offset=".55" stop-color="#F58A12"/><stop offset="1" stop-color="#E06A00"/>
@@ -153,7 +162,9 @@ CITRUS_ART = '''<div class="citrus-art" aria-hidden="true">
   <path d="M598 176 C 640 120, 720 118, 760 140 C 720 182, 650 196, 598 176 Z" fill="#2F9E44"/>
   <path d="M600 176 C 660 150, 712 142, 752 142" stroke="#237A33" stroke-width="4" fill="none" stroke-linecap="round"/>
   <path d="M592 184 C 556 140, 500 136, 470 152 C 500 186, 552 196, 592 184 Z" fill="#3DB356"/>
-</svg></div>'''
+</svg>'''
+CITRUS_ART = ('<div class="citrus-art" aria-hidden="true"><img alt="" src="data:image/svg+xml;base64,'
+              + base64.b64encode(CITRUS_SVG.encode()).decode() + '"></div>')
 
 
 def is_landing():
@@ -177,6 +188,9 @@ def render(tools=None):
         # answers; keep a slim band instead. '새 대화' brings the full hero back.
         st.html(f'<div class="citrus-band"><span class="citrus-logo">{BRAND}</span>'
                 f'<span class="citrus-band-sub">{HEADLINE[1]}</span></div>')
+        # Keep 새 대화·예시 질문·리포트·사용 안내 reachable in a long conversation.
+        st.html('<style>[data-testid="stLayoutWrapper"]:has(> .st-key-citrus_toolbar) {'
+                'position: sticky; top: 0; z-index: 50; background: var(--citrus); padding-top: .6rem;}</style>')
         if tools:
             tools()
         return None

@@ -25,8 +25,8 @@ PARENTS = {
 
 # External reference tables (data/external). Only README-documented links become URLs.
 EXTERNAL_TITLES = {
-    'standard_income.csv': ('제주농산물수급관리센터', '「감귤유통처리 분석」 표준소득 분석표 추출·판독 (data/external/README_cost_cpi.md)'),
-    'cpi_annual.csv': ('국가지표체계 소비자물가지수', '연평균, 2020=100 (data/external/README_cost_cpi.md)'),
+    'standard_income.csv': ('제주농산물수급관리센터', '「감귤유통처리 분석」 표준소득 분석표 추출·판독'),
+    'cpi_annual.csv': ('국가지표체계 소비자물가지수', '연평균, 2020=100'),
     'kosis_farm_purchase_price_quarterly.csv': ('KOSIS 농가구입가격지수', '농가판매 및 구입가격조사, 2020=100, 분기 원본'),
 }
 EXTERNAL_DISPLAY = {'standard_income.csv': '제주농산물수급관리센터 「감귤유통처리 분석」 표준소득표'}

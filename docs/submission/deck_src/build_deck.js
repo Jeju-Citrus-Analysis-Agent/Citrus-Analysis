@@ -29,7 +29,7 @@ const MUTED = "6E6255";
 const pres = new pptxgen();
 pres.layout = "LAYOUT_WIDE"; // 13.333 x 7.5
 pres.title = "감귤의 신(神) 기획서";
-pres.author = "감귤의 신 팀";
+pres.author = "팀 알맹이";
 pres.theme = { headFontFace: THEME.headFontFace, bodyFontFace: THEME.bodyFontFace };
 const C = pres.SchemeColor;
 const W = 13.333, H = 7.5, M = 0.6;
@@ -132,7 +132,11 @@ async function keepKoreanWords(file) {
     { text: "데이터로 읽는 제주 감귤 수급 비서", options: { bold: true, fontSize: 24, breakLine: true } },
     { text: "제주 감귤 생산·가격·경영비 데이터 분석 및 질의응답 에이전트", options: { fontSize: 16 } },
   ], { placeholder: "body" });
-  text(s, "2026. 11.  기획서", { x: M, y: H - 0.9, w: 5, h: 0.4, fontSize: 14, color: C.background2 });
+  text(s, [
+    { text: "팀 알맹이", options: { bold: true, fontSize: 18, breakLine: true } },
+    { text: "김태양 · 오동경 · 류채연", options: { fontSize: 15, breakLine: true } },
+    { text: "2026. 11.  기획서", options: { fontSize: 13 } },
+  ], { x: M, y: H - 1.75, w: 6, h: 1.3, color: C.background2, valign: "bottom" });
   s.addShape(pres.shapes.OVAL, { x: 8.55, y: 1.35, w: 4.3, h: 4.3, fill: { color: HEX.lt2, transparency: 88 }, line: { color: HEX.lt2, transparency: 88 }, objectName: "glow" });
   await fitImage(s, path.join(HERE, "mandarin.png"), { x: 8.7, y: 1.5, w: 4.0, h: 4.0 }, { objectName: "mandarin" });
   s.addNotes("감귤의 신(神)은 제주 감귤 데이터를 정리·분석하고, 그 결과를 누구나 질문으로 꺼내 볼 수 있게 만든 서비스입니다.");

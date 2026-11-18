@@ -1,0 +1,11 @@
+# 저장소 루트에서 실행할 때 쓰는 Streamlit 설정 (citrus_freellm/start-web.cmd도 루트에서 실행한다).
+[theme]
+# 선택 버튼·체크 등 기본 강조색을 감귤 테마의 진한 감귤색으로 (기본값은 빨강)
+primaryColor = "#F26B00"
+
+[client]
+# 개발자용 Deploy 메뉴를 숨긴다
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false

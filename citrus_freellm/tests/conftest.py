@@ -4,9 +4,13 @@ That data may not be copied or redistributed without the centre's consent, so it
 out of git and out of the submission archive. After following the collection steps in the
 manual, the files exist and every test below runs as usual.
 """
+import os
 from pathlib import Path
 
 import pytest
+
+# Tests must not depend on a developer's .env key or call a paid model.
+os.environ.setdefault('CITRUS_LOCAL_ONLY', '1')
 
 ROOT = Path(__file__).resolve().parents[2]
 JASDC_FILES = (

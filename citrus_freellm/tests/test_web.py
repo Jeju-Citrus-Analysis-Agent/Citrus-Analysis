@@ -12,8 +12,15 @@ except ImportError:
 APP = Path(__file__).resolve().parents[1] / "web.py"
 
 
+def enter(app):
+    """Click the tangerine on the splash screen, if it is showing."""
+    button = next((b for b in app.button if b.key == 'citrus_enter_button'), None)
+    return button.click().run() if button else app
+
+
 def ask(app, question):
     """Type a question the way a person would: the hero box first, the bottom chat box after."""
+    enter(app)
     if app.chat_input:
         return app.chat_input[0].set_value(question).run()
     # The landing page has no chat box (it would pin the page to the bottom).
@@ -24,7 +31,17 @@ def ask(app, question):
 @unittest.skipIf(AppTest is None, "requirements-ui.txt 설치 시 UI 검사 가능")
 class WebTests(unittest.TestCase):
     def app(self):
-        return AppTest.from_file(str(APP), default_timeout=15).run()
+        return enter(AppTest.from_file(str(APP), default_timeout=15).run())
+
+    def test_splash_tangerine_opens_main_page(self):
+        app = AppTest.from_file(str(APP), default_timeout=15).run()
+        self.assertFalse(app.exception)
+        self.assertEqual([b.key for b in app.button], ['citrus_enter_button'])
+        self.assertFalse(any(t.label == '질문' for t in app.text_input), 'no question box before entering')
+        enter(app)
+        self.assertFalse(app.exception)
+        self.assertTrue(any(t.label == '질문' for t in app.text_input))
+        self.assertFalse(any(b.key == 'citrus_enter_button' for b in app.button))
 
     def test_scroll_iframe_height_is_positive_after_questions_and_edit(self):
         import streamlit as st

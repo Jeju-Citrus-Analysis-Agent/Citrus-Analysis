@@ -21,8 +21,7 @@ from citrus_freellm.example_questions import EXAMPLE_CATEGORIES
 from citrus_freellm.presentation import split_answer, SUMMARY_HEADER
 from citrus_freellm.navigation import question_anchor, scroll_script, SCROLL_FRAME_HEIGHT
 from citrus_freellm.usability import (availability_signature, source_availability, snapshot_context,
-                                     restore_context, followup_context, chart_followup,
-                                     comparison_followup, number_hints, unit_hints,
+                                     restore_context, followup_context, number_hints, unit_hints,
                                      needs_examples, related_examples, friendly_failure)
 
 
@@ -136,6 +135,10 @@ def main():
     [class*="st-key-edit_action_"] button:hover {background: #f1f5f9;}
     .stMain, [data-testid="stMain"] {overflow-anchor: none; scroll-behavior: auto;}
     </style>''', unsafe_allow_html=True)
+    if not st.session_state.get('entered'):
+        # A splash screen first: clicking the tangerine opens the main page.
+        landing.splash()
+        return
     use_model = claude_configured()
     # Agent를 전역 캐시에 두면 다른 브라우저 세션과 대화가 섞일 수 있다.
     if "agent" not in st.session_state or isinstance(st.session_state.agent, ConsultAgent) != use_model:

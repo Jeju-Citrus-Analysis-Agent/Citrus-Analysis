@@ -2,7 +2,7 @@
 
 제주 감귤 농가와 예비 창업자를 위한 **생산·유통·가격 데이터 분석 및 수급 예측 에이전트** 프로젝트입니다.
 
-> 📌 **현재 단계: Phase 2 — 정제 파이프라인·심화 분석** (Phase 1 EDA 완료)
+> 📌 **현재 단계: 해커톤 제출 버전** — 데이터 정제·분석(Phase 1~3)과 질의응답 에이전트(`citrus_freellm`)를 포함합니다.
 > 상세 요구사항과 진행 상황은 [`docs/requirements_spec.md`](docs/requirements_spec.md)를 참고하세요.
 
 ## 팀 검증용 감귤 도우미
@@ -12,13 +12,44 @@
 Streamlit 화면은 저장소 루트에서 다음 명령으로 실행합니다.
 
 ```powershell
-python -m pip install -r citrus_freellm/requirements-ui.txt
+python -m pip install -r requirements.txt -r citrus_freellm/requirements-ui.txt
+python -m pip install -e .
 python -m streamlit run citrus_freellm/web.py --server.address 127.0.0.1 --browser.gatherUsageStats false
 ```
 
 현재 웹 도우미는 API 키 없이 저장된 자료의 조회·비교, 분석 설명과 가정 계산을 제공합니다.
 외부 자료 검색만 인터넷 연결이 필요합니다.
 [팀 검증 순서와 예상 결과](citrus_freellm/docs/TEAM_REVIEW.md)를 참고하세요.
+
+---
+
+## 📥 별도로 받아야 하는 데이터 (제주농산물수급관리센터)
+
+제주농산물수급관리센터([jasdc.or.kr](https://jasdc.or.kr)) 자료는 이용약관상 사전 승낙 없는 복제·유통이 금지되어
+저장소에 포함하지 않았습니다(`.gitignore`로 제외). 아래 표에서 직접 받아 주세요.
+**이 자료가 없어도 화면은 실행되고**, 해당 질문에는 "필요한 자료가 없습니다"라는 안내가 나옵니다.
+
+| 자료 | 받는 곳 | 방법 | 넣을 위치 |
+| --- | --- | --- | --- |
+| 생산량·면적·조수입 | [감귤 생산정보](https://jasdc.or.kr/tangerine/output/output1.htm) | 자동 수집 | `data/raw/jasdc/` |
+| 가공처리 | [가공처리현황](https://jasdc.or.kr/tangerine/processing.htm) | 자동 수집 | `data/raw/jasdc/` |
+| 수출 | [수출현황](https://jasdc.or.kr/tangerine/export.htm) | 자동 수집 | `data/raw/jasdc/` |
+| 유통처리 상황 | [유통처리 상황](https://jasdc.or.kr/tangerine/day/distribution/tangerine1.htm) | 화면 표를 엑셀 시트 5개로 옮김 (수동) | `data/raw/distribution/distribution_analysis.xlsx` |
+| 일별 가격·출하 | jasdc 가격 정보 > 총괄가격(일별) 화면 | '조회 자료 엑셀 다운로드' (수동, 시즌별) | `data/raw/jasdc_manual/price_daily/` |
+| 월별 상자규격 가격 | jasdc 가격 정보 > 단위별(월별) 가격 화면 | 표를 복사해 txt로 저장 (수동) | `data/raw/jasdc_manual/price_monthly_box/` |
+| 표준소득표(경영비) | jasdc 알림공간 > 센터간행물 「○○년산 감귤유통처리 분석」 PDF | PDF를 받아 표 추출 (수동) | `data/raw/jasdc_manual/reports/` |
+
+자동 수집 자료(생산·가공·수출)는 아래 명령으로 한 번에 받습니다.
+
+```bash
+python scripts/collect_jasdc.py
+```
+
+수동 자료의 파일 이름 규칙과 정제 순서는 [실행환경 및 매뉴얼 4.2절](docs/submission/01_실행환경_및_매뉴얼.md)을 따르세요.
+
+> ⚠️ **재현 한계:** 스캔본 PDF(2016·2018~2021년산)의 표준소득표는 사람이 표를 보고 옮긴 판독본이 필요해
+> 누구나 완전히 재현하기는 어렵습니다. 센터 자료가 없으면 경영비·손익분기 질문 6건은 답하지 못하고,
+> 나머지는 정상 동작합니다(`python -m citrus_freellm.evaluate --local` 결과 10/16).
 
 ---
 
@@ -45,7 +76,7 @@ python -m streamlit run citrus_freellm/web.py --server.address 127.0.0.1 --brows
 ## 📁 폴더 구조
 
 ```text
-jeju_citrus/
+Citrus-Analysis/
 ├── data/
 │   ├── raw/                  # 원본 데이터 (읽기 전용, 직접 수정 금지)
 │   │   ├── public/           #   공공데이터 CSV (crop_production, fruit_production)
@@ -59,8 +90,11 @@ jeju_citrus/
 │   ├── processed/            # 분석용 최종 데이터
 │   └── external/             # 외부 데이터 (weather/: 기상청 ASOS, cost/: 표준소득표, cpi/: 소비자물가·농가구입가격지수)
 │
+├── citrus_freellm/          # 질의응답 에이전트와 Streamlit 화면 (시작점: web.py)
+│
 ├── docs/
-│   └── requirements_spec.md  # 요구사항 정의서 (데이터 명세, 품질 이슈, 로드맵)
+│   ├── requirements_spec.md  # 요구사항 정의서 (데이터 명세, 품질 이슈, 로드맵)
+│   └── submission/           # 제출 문서 (기획서, 실행환경·매뉴얼, 데이터 활용 명세, 결과 설명)
 │
 ├── notebooks/                # 분석 노트북 (번호_주제.ipynb)
 │   ├── 01_eda.ipynb          #   탐색적 데이터 분석
@@ -160,7 +194,7 @@ python scripts/collect_jasdc.py   # 수집(data/raw/jasdc/) → 정제(data/proc
 
 - 수집 원본은 값을 그대로 `data/raw/jasdc/`에 저장하고, 수집 시각과 URL을 `manifest.json`에 기록합니다.
 - 정제 단계에서 단위를 통일하고(만감류 조수입 억원 → 백만원), 원본 오타를 보정하고, 단가가 조수입 ÷ 생산량과 맞는지 검증합니다.
-- **⚠️ 이용약관상 사전 승낙 없이 복제·유통·상업적으로 이용하는 것이 금지되어 있습니다.** 그래서 수집 데이터는 `.gitignore`로 git에서 제외했습니다. 새로 clone한 경우 위 명령으로 다시 수집하세요.
+- **⚠️ 이용약관상 사전 승낙 없이 복제·유통·상업적으로 이용하는 것이 금지되어 있습니다.** 그래서 수집 데이터는 `.gitignore`로 git에서 제외했습니다. 새로 clone한 경우 위 명령으로 생산·가공·수출 통계(`citrus_*.csv` 4종)를 다시 수집할 수 있습니다. 나머지(유통처리, 일별·월별 가격, 표준소득표)는 위 「별도로 받아야 하는 데이터」 표의 수동 절차가 필요합니다.
 - 가격·출하 화면(일별·월별·도매시장별)은 JS로 데이터를 불러오는 구조라 자동으로 수집하지 않습니다. 화면의 '엑셀 다운로드'로 받아서 일별은 `data/raw/jasdc_manual/price_daily/`, 월별 상자규격은 `data/raw/jasdc_manual/price_monthly_box/`에 넣습니다.
 
 > **⚠️ `crop_production.csv`가 깨져 보이는 이유**
@@ -181,17 +215,28 @@ python scripts/collect_jasdc.py   # 수집(data/raw/jasdc/) → 정제(data/proc
 
 ### 1. 환경 설정 (최초 1회)
 ```bash
-cd jeju_citrus
+cd Citrus-Analysis
 
 # conda 환경 생성: Python 3.10 + 의존성 + 프로젝트 패키지(편집 모드)를 한 번에 설치
 conda env create -f environment.yml
 conda activate jeju_citrus
+
+# 질의응답 에이전트·웹 화면용 패키지 (streamlit, fpdf2, anthropic)
+pip install -r citrus_freellm/requirements-ui.txt
 
 # Jupyter 커널 등록 (노트북에서 이 환경을 쓰기 위해)
 python -m ipykernel install --user --name jeju_citrus --display-name "Python 3.10 (jeju_citrus)"
 ```
 
 > 의존성이 바뀌었을 때: `conda env update -f environment.yml --prune`
+>
+> **conda가 없다면 venv를 쓰세요.**
+> ```bash
+> python -m venv .venv
+> .venv\Scripts\activate        # macOS/Linux: source .venv/bin/activate
+> pip install -r requirements.txt -r citrus_freellm/requirements-ui.txt
+> pip install -e . pytest
+> ```
 > 한글 폰트는 `koreanize-matplotlib` 패키지에 들어 있으므로 따로 설치할 필요가 없습니다.
 
 ### 2. 노트북으로 분석하기
@@ -200,14 +245,27 @@ python -m ipykernel install --user --name jeju_citrus --display-name "Python 3.1
 
 ### 3. 스크립트 / 테스트
 ```bash
-python scripts/collect_jasdc.py  # jasdc 데이터 수집·정제 (최초 1회)
+python scripts/collect_jasdc.py  # jasdc 데이터 수집·정제 (최초 1회, 생산·가공·수출만 자동)
 python scripts/make_dataset.py   # 모든 원본(raw/external) → processed·interim 재생성
 python scripts/check_quality.py  # 품질 이슈 확인 근거 출력
 python scripts/extract_standard_income.py  # 표준소득표 PDF → data/external/cost/ (pip install pypdf)
 python scripts/run_eda.py        # 데이터 로드 확인
-pytest                           # 테스트
+pytest                           # 테스트 (센터 자료가 없으면 해당 테스트는 건너뜀)
+python -m citrus_freellm.evaluate --local   # 에이전트 오프라인 평가 (센터 자료 없으면 10/16)
 ruff check .                     # 코드 스타일 검사
 ```
+
+> ⚠️ **센터 자료가 없으면 위 스크립트 중 아래는 `FileNotFoundError`로 멈춥니다(정상).**
+> 먼저 위의 「📥 별도로 받아야 하는 데이터」 표대로 자료를 받아 두세요.
+>
+> | 스크립트 | 필요한 자료 |
+> | --- | --- |
+> | `make_dataset.py` | `data/raw/distribution/distribution_analysis.xlsx` (유통처리 엑셀) |
+> | `check_quality.py` | `data/processed/citrus_price_daily.csv` 등 (일별·월별 가격) |
+> | `extract_standard_income.py` | 센터간행물 PDF와 판독본 (표준소득표) |
+> | `run_eda.py` | 앞부분(과수·특용작물)은 자료 없이 동작, 뒷부분은 `noji_yearly.csv` 필요 |
+>
+> `pytest`와 `python -m citrus_freellm.evaluate --local`은 자료 없이도 실행됩니다.
 
 ---
 
@@ -236,6 +294,6 @@ fruit = load_raw("fruit_production.csv")                  # 인코딩 자동 처
 | Phase 1 | EDA, 데이터 품질 이슈 파악, 장기 데이터(2004~2025) 확보 | ✅ |
 | Phase 2 | 정제 파이프라인(품질 이슈 Q3~Q11 ✅), 가격·수익성 심화 분석 (경영비 9년·물가 보정 ✅) | 🔄 진행 중 |
 | Phase 3 | 기상 데이터 결합·상관분석 ✅, 병해충 데이터 ⏳ | 🔄 |
-| Phase 4 | 예측 모델 (질의응답·리포트 에이전트는 담당 외) | ⏳ |
+| Phase 4 | 질의응답·리포트 에이전트 ✅ (`citrus_freellm`) · 예측 모델 ⏳ (시험 모델 오차가 단순 기준선과 비슷해 답변에는 쓰지 않음) | 🔄 |
 
 상세 내용은 [요구사항 정의서 §6](docs/requirements_spec.md#6-로드맵)을 참고하세요.

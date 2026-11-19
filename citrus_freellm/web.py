@@ -92,7 +92,10 @@ LONG_DETAILS = 900  # characters; shorter details (a lookup table) stay open und
 
 
 def plain_tildes(text):
-    """'2016~2020 … 53~56%' must not become strikethrough: Streamlit reads a pair of ~ as ~~."""
+    """'2016~2020 … 53~56%' must not become strikethrough: Streamlit reads a pair of ~ as ~~.
+    Also: bold that ends in punctuation and touches Korean text ('**…(+3%)**입니다') is not
+    closed by Markdown, so a space is put after the closing '**'."""
+    text = re.sub(r'(\*\*[^*\n]*?[)\]%.,:;!?"\'”’])\*\*(?=[가-힣])', r'\1** ', text)
     return re.sub(r'(?<!\\)~', r'\\~', text)
 
 

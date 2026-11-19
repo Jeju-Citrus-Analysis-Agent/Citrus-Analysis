@@ -1,8 +1,8 @@
-# 🍊 제주 감귤 분석 에이전트 (jeju_citrus)
+# 제주 감귤 분석 에이전트 (jeju_citrus)
 
 제주 감귤 농가와 예비 창업자를 위한 **생산·유통·가격 데이터 분석 및 수급 예측 에이전트** 프로젝트입니다.
 
-> 📌 **현재 단계: Phase 2 — 정제 파이프라인·심화 분석** (Phase 1 EDA 완료)
+> 현재 단계: Phase 2 정제 파이프라인·심화 분석 (Phase 1 EDA 완료)
 > 상세 요구사항과 진행 상황은 [`docs/requirements_spec.md`](docs/requirements_spec.md)를 참고하세요.
 
 ## 팀 검증용 감귤 도우미
@@ -16,13 +16,14 @@ python -m pip install -r citrus_freellm/requirements-ui.txt
 python -m streamlit run citrus_freellm/web.py --server.address 127.0.0.1 --browser.gatherUsageStats false
 ```
 
-현재 웹 도우미는 API 키 없이 저장된 자료의 조회·비교, 분석 설명과 가정 계산을 제공합니다.
-외부 자료 검색만 인터넷 연결이 필요합니다.
+웹 도우미는 저장된 자료의 조회·비교, 분석 설명과 가정 계산을 로컬에서 처리합니다.
+상담 모드에는 Anthropic API 키로 Claude Haiku 5.5(`claude-haiku-5-5`)를 연동해 썼습니다.
+키는 `citrus_freellm/.env`에만 두고 저장소에는 올리지 않습니다. 키가 없으면 상담 모드만 꺼집니다.
 [팀 검증 순서와 예상 결과](citrus_freellm/docs/TEAM_REVIEW.md)를 참고하세요.
 
 ---
 
-## 🔍 주요 발견
+## 주요 발견
 
 [`01_eda`](notebooks/01_eda.ipynb) · [`02_trend_weather_timing`](notebooks/02_trend_weather_timing.ipynb) · [`03_cost_inflation`](notebooks/03_cost_inflation.ipynb) · [`04_breakeven_decomposition`](notebooks/04_breakeven_decomposition.ipynb) 결과 요약입니다.
 
@@ -42,7 +43,7 @@ python -m streamlit run citrus_freellm/web.py --server.address 127.0.0.1 --brows
 
 ---
 
-## 📁 폴더 구조
+## 폴더 구조
 
 ```text
 jeju_citrus/
@@ -109,7 +110,7 @@ jeju_citrus/
 
 ---
 
-## 📊 데이터
+## 데이터
 
 | 위치 | 파일 | 내용 | 기간 |
 | --- | --- | --- | --- |
@@ -139,7 +140,7 @@ jeju_citrus/
 | interim | `fruit_production_clean.csv` | 대분류 통일 + `집계수준` 컬럼 (Q4) | 2015~2020 |
 | interim | `jeju_special_crops_clean.csv` | 중복·소계·미재배 행 제거, 단수 재계산·이상 표시 (Q5) | 2010~2023 |
 
-### ⚠️ 데이터를 쓸 때 알아둘 점 (품질 이슈 확인 결과)
+### 데이터를 쓸 때 알아둘 점 (품질 이슈 확인 결과)
 - **단가는 `조수입 ÷ 처리량`입니다.** 생산량으로 나눈 값이 아닙니다. 2023~2024년 만감류·월동온주는 생산량과 처리량이 달라서 `단가 × 생산량 ≠ 조수입`입니다. 조수입은 `조수입_백만원`을 그대로 쓰고, 단가가 믿을 만한지는 `단가_검증` 컬럼으로 확인하세요(`확인불가` 4건은 제외 권장).
 - **2017년에 재배면적 통계가 끊깁니다.** 온주밀감 면적이 줄고 레드향·천혜향·황금향 면적이 2.5~4.4배로 늘었지만 생산량은 그대로입니다. 2016년 이전과 이후의 면적·ha당 생산량을 바로 비교하지 마세요.
 - **일별 출하 표는 처리량의 45~53%만 담습니다**(도매시장+직거래). 월별 상자규격 표와 9대 도매시장 표는 그 가운데 다시 53~58%입니다. 가격은 세 표 모두 같은 출처라 함께 써도 되지만, **물량은 섞지 마세요.**
@@ -160,10 +161,10 @@ python scripts/collect_jasdc.py   # 수집(data/raw/jasdc/) → 정제(data/proc
 
 - 수집 원본은 값을 그대로 `data/raw/jasdc/`에 저장하고, 수집 시각과 URL을 `manifest.json`에 기록합니다.
 - 정제 단계에서 단위를 통일하고(만감류 조수입 억원 → 백만원), 원본 오타를 보정하고, 단가가 조수입 ÷ 생산량과 맞는지 검증합니다.
-- **⚠️ 이용약관상 사전 승낙 없이 복제·유통·상업적으로 이용하는 것이 금지되어 있습니다.** 그래서 수집 데이터는 `.gitignore`로 git에서 제외했습니다. 새로 clone한 경우 위 명령으로 다시 수집하세요.
+- **이용약관상 사전 승낙 없이 복제·유통·상업적으로 이용하는 것이 금지되어 있습니다.** 그래서 수집 데이터는 `.gitignore`로 git에서 제외했습니다. 새로 clone한 경우 위 명령으로 다시 수집하세요.
 - 가격·출하 화면(일별·월별·도매시장별)은 JS로 데이터를 불러오는 구조라 자동으로 수집하지 않습니다. 화면의 '엑셀 다운로드'로 받아서 일별은 `data/raw/jasdc_manual/price_daily/`, 월별 상자규격은 `data/raw/jasdc_manual/price_monthly_box/`에 넣습니다.
 
-> **⚠️ `crop_production.csv`가 깨져 보이는 이유**
+> **`crop_production.csv`가 깨져 보이는 이유**
 > 이 파일은 공공데이터에서 흔히 쓰는 **cp949(EUC-KR)** 인코딩으로 저장되어 있습니다. VSCode는 기본적으로 UTF-8로 열기 때문에 한글이 깨져 보이지만, **파일 자체는 정상**입니다.
 > - 코드에서는 `load_raw("crop_production.csv")`가 인코딩을 자동으로 처리합니다(`config.RAW_ENCODINGS`).
 > - VSCode에서 보려면 오른쪽 아래 `UTF-8` 클릭 → `Reopen with Encoding` → `Korean (EUC-KR)`을 선택하세요.
@@ -177,7 +178,7 @@ python scripts/collect_jasdc.py   # 수집(data/raw/jasdc/) → 정제(data/proc
 
 ---
 
-## 🚀 시작하기
+## 시작하기
 
 ### 1. 환경 설정 (최초 1회)
 ```bash
@@ -211,7 +212,7 @@ ruff check .                     # 코드 스타일 검사
 
 ---
 
-## 🧩 코드에서 사용하기
+## 코드에서 사용하기
 
 ```python
 from jeju_citrus.data import load_raw, load_processed
@@ -229,13 +230,13 @@ fruit = load_raw("fruit_production.csv")                  # 인코딩 자동 처
 
 ---
 
-## 🗺️ 로드맵
+## 로드맵
 
 | 단계 | 내용 | 상태 |
 | --- | --- | --- |
-| Phase 1 | EDA, 데이터 품질 이슈 파악, 장기 데이터(2004~2025) 확보 | ✅ |
-| Phase 2 | 정제 파이프라인(품질 이슈 Q3~Q11 ✅), 가격·수익성 심화 분석 (경영비 9년·물가 보정 ✅) | 🔄 진행 중 |
-| Phase 3 | 기상 데이터 결합·상관분석 ✅, 병해충 데이터 ⏳ | 🔄 |
-| Phase 4 | 예측 모델 (질의응답·리포트 에이전트는 담당 외) | ⏳ |
+| Phase 1 | EDA, 데이터 품질 이슈 파악, 장기 데이터(2004~2025) 확보 | 완료 |
+| Phase 2 | 정제 파이프라인(품질 이슈 Q3~Q11 완료), 가격·수익성 심화 분석 (경영비 9년·물가 보정 완료) | 진행 중: 진행 중 |
+| Phase 3 | 기상 데이터 결합·상관분석 완료, 병해충 데이터 예정 | 진행 중 |
+| Phase 4 | 예측 모델 (질의응답·리포트 에이전트는 담당 외) | 예정 |
 
 상세 내용은 [요구사항 정의서 §6](docs/requirements_spec.md#6-로드맵)을 참고하세요.

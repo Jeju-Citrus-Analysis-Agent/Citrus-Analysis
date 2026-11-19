@@ -1,7 +1,7 @@
 """감귤 화면 디자인: 감귤색 히어로, 인사·추천 질문, 질문 입력, 감귤 일러스트.
 
 대화가 시작돼도 이 화면을 유지하고, 질문과 답변은 감귤 그림 아래에 이어서 보여 준다.
-사이드바는 건드리지 않는다.
+사이드바는 숨기고, 새 대화·예시 질문·리포트 버튼을 로고 아래 한 줄에 둔다.
 """
 import base64
 
@@ -12,7 +12,7 @@ from citrus_freellm import art
 BRAND = '감귤의 신(神)'
 TOP_LINE = '데이터로 읽는 제주 감귤, 감귤의 신(神)'
 HEADLINE = ('감귤의 신(神)', '데이터로 읽는 감귤 수급 비서')
-GREETING = ('안녕하세요! 🍊 제주 감귤의 생산·가격·경영비 자료를 찾아보고 계산해 드려요.',
+GREETING = ('안녕하세요. 제주 감귤의 생산·가격·경영비 자료를 찾아보고 계산해 드려요.',
             '궁금한 걸 바로 적거나, 아래 추천 질문을 눌러 시작해 보세요.')
 # 써라운드 글꼴에는 한자가 없어 '神'이 빈칸으로 보인다. 그 한 글자만 Noto Sans KR로 그린다.
 HANJA_FONT = 'https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@900&text=%E7%A5%9E&display=swap'
@@ -32,9 +32,11 @@ SUGGESTIONS = ('2024년산 품종별 소득 비교해줘', '언제 팔면 비싼
 # 글꼴: 카페24 써라운드(눈누 배포, 웹 사용 가능). 본문은 얇은 써라운드에어, 제목·굵은 글씨는 써라운드.
 # 받지 못하면 시스템 한글 글꼴로 대신한다.
 SSURROUND = 'https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2105_2@1.0/'
+# 써라운드에는 한자 모양이 없거나 깨져 보이므로, 한자는 이 글꼴이 맡지 않고 시스템 한글 글꼴로 넘긴다.
+ROUND_RANGE = 'U+0000-33FF, U+A960-A97F, U+AC00-D7FF, U+FE30-FE4F, U+FF00-FFEF'
 FONT_FACES = ''.join(
     "@font-face {font-family: 'Citrus Round'; font-weight: %s; font-display: swap; "
-    "src: url('%s%s.woff') format('woff');}\n" % (weights, SSURROUND, name)
+    "src: url('%s%s.woff') format('woff'); unicode-range: %s;}\n" % (weights, SSURROUND, name, ROUND_RANGE)
     for weights, name in (('100 500', 'Cafe24SsurroundAir'), ('600 900', 'Cafe24Ssurround')))
 FONT_STACK = ("'Citrus Round', 'Cafe24Ssurround', 'Apple SD Gothic Neo', 'Malgun Gothic', "
               "'Noto Sans KR', sans-serif")
@@ -47,7 +49,7 @@ CSS = '<style>\n@import url("' + HANJA_FONT + '");\n' + FONT_FACES + '''
   --peel-light: #FFC266; --leaf: #1E8F3E; --leaf-dark: #146B2D;
   --ink: #1A1410; --paper: #FFFFFF; --font: ''' + FONT_STACK + ''';
 }
-/* 글씨체: 앱 전체(사이드바 포함). 아이콘 글꼴은 각 아이콘이 따로 지정하므로 그대로 남는다. */
+/* 글씨체: 앱 전체. 아이콘 글꼴은 각 아이콘이 따로 지정하므로 그대로 남는다. */
 .stApp, .stApp p, .stApp li, .stApp label, .stApp input, .stApp textarea, .stApp button,
 .stApp h1, .stApp h2, .stApp h3, .stApp td, .stApp th, .stApp [data-testid="stMarkdownContainer"] {
   font-family: var(--font);

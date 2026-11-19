@@ -513,23 +513,23 @@ def investigate_result(question, previous=None):
 def conversation_result(question):
     text = re.sub(r'[\s.!?~😊👋]', '', question)
     if text in {'안녕', '안녕하세요', '안녕하십니까', '반가워', '반갑습니다', '하이', 'hello', 'hi'}:
-        return result('안녕하세요! 🍊 감귤 자료를 찾고 계산하는 도우미예요.\n\n‘천혜향 생산량을 그래프로 보여줘’처럼 물어보거나 왼쪽 예시 질문을 눌러 보세요.')
+        return result('안녕하세요. 감귤 자료를 찾고 계산하는 도우미예요.\n\n‘천혜향 생산량을 그래프로 보여줘’처럼 물어보거나 위쪽 예시 질문 버튼을 눌러 보세요.')
     if text in {'고마워', '감사합니다', '고맙습니다', '고마워요'}:
-        return result('도움이 되었다니 다행이에요. 다른 감귤 자료도 궁금하면 물어보세요!')
+        return result('도움이 되었다니 다행이에요. 다른 감귤 자료도 궁금하면 물어보세요.')
     if re.search('생산량.*출하량|출하량.*생산량', question) and re.search('차이|달라|뜻', question):
         return result('**생산량**은 수확해 생산한 양이고, **출하량**은 판매·유통을 위해 내보낸 양입니다.\n\n예를 들어 100kg을 생산하고 80kg을 내보냈다면 생산량은 100kg, 출하량은 80kg입니다. 집계 기간과 대상에 따라 두 값은 다를 수 있습니다.')
     if re.search('추천.*질문|질문.*추천|예시.*질문|뭘.*물어|뭐.*물어|무엇을.*물어', question):
         from .landing import SUGGESTIONS
         picks = list(SUGGESTIONS) + ['2020년 천혜향 생산량 알려줘', '천혜향 생산량을 그래프로 보여줘']
-        return result('이런 질문부터 해 보세요 🍊\n\n' + '\n'.join(f'- {q}' for q in picks)
-                      + '\n\n왼쪽 **예시 질문** 메뉴에서 더 많은 질문을 고를 수 있어요.')
+        return result('이런 질문부터 해 보세요.\n\n' + '\n'.join(f'- {q}' for q in picks)
+                      + '\n\n위쪽 **예시 질문** 버튼에서 더 많은 질문을 고를 수 있어요.')
     if re.search('누구|이름이뭐|정체', text) and len(text) <= 12:
-        return result('저는 **제주감귤분석도우미**예요 🍊 제주 감귤의 생산량·가격·경영비 자료를 찾아 계산해 드려요. '
+        return result('저는 **제주감귤분석도우미**예요. 제주 감귤의 생산량·가격·경영비 자료를 찾아 계산해 드려요. '
                       '자료에 없는 내용은 지어내지 않아요.')
     if re.search('사랑|좋아해|최고|짱|귀여', text) and len(text) <= 12 and not re.search('귤|온주|한라봉|천혜향|레드향|황금향|품종', text):
-        return result('고마워요, 저도 감귤만큼 좋아요 🍊 궁금한 감귤 자료가 있으면 편하게 물어보세요!')
+        return result('고마워요. 궁금한 감귤 자료가 있으면 편하게 물어보세요.')
     if re.search(r'(?:뭘|뭐|무엇을).{0,4}할\s*수\s*있|사용법|어떻게.*사용|할 수 있는', question):
-        return result('자료 조회, 그래프, 빠진 값 확인, 문서 검색, 날씨 비교, 품종별 단가·경영비 조회, 이익 계산을 할 수 있어요. 왼쪽 **예시 질문** 메뉴의 **무엇을 하고 싶으세요** 목록에서 하나를 골라 보세요.')
+        return result('자료 조회, 그래프, 빠진 값 확인, 문서 검색, 날씨 비교, 품종별 단가·경영비 조회, 이익 계산을 할 수 있어요. 위쪽 **예시 질문** 버튼을 누르면 하고 싶은 일별로 질문을 고를 수 있어요.')
     return None
 
 

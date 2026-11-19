@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from citrus_freellm.consult import ConsultAgent, redact_money, unsupported_numbers, CONSULT_TITLE
+from citrus_freellm.consult import ConsultAgent, redact_money, unsupported_numbers, CONSULT_TITLE, HANJA_NOTE
 
 
 def call(name, **args):
@@ -92,6 +92,7 @@ class ConsultTest(unittest.TestCase):
         self.assertEqual(redact_money('300만원')[0], '[금액 비공개·1억 원 미만]')
         self.assertEqual(unsupported_numbers('2월에 3가지, 1,366.9만원', ['1,366.9만원/10a']), [])
         self.assertEqual(unsupported_numbers('3.5배', ['1.5배']), ['3.5'])
+        self.assertEqual(HANJA_NOTE.sub('', '노지(露地), 즉 바깥 밭 (2024년)'), '노지, 즉 바깥 밭 (2024년)')
 
 
 if __name__ == '__main__':

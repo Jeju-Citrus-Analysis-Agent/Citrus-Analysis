@@ -247,7 +247,7 @@ def related_examples(question, availability, limit=3):
     return chosen
 
 
-APOLOGY = '죄송해요, 이 질문은 제가 바로 답하기 어려워요. 🍊 아래 예시 질문을 참고해 주세요.'
+APOLOGY = '죄송해요, 이 질문은 제가 바로 답하기 어려워요. 아래 예시 질문을 참고해 주세요.'
 # Reasons worth keeping: what data exists, not instructions on how to phrase a question.
 # Future values are out of scope on purpose; say so instead of a bare apology.
 FORECAST = re.compile(r'내년|내후년|다음\s*해|앞으로|미래|예측|전망|예상|될\s*까|오를\s*까|내릴\s*까|떨어질\s*까')

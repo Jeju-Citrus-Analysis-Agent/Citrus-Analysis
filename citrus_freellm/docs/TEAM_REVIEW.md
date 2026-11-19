@@ -5,8 +5,9 @@
 저장소 루트에서 `python -m pip install -r citrus_freellm/requirements-ui.txt`로 설치하고
 `python -m streamlit run citrus_freellm/web.py --server.address 127.0.0.1 --browser.gatherUsageStats false`로 실행합니다.
 브라우저의 http://127.0.0.1:8501 에서 질문하세요. Windows에서는 start-web.cmd도 사용할 수 있습니다.
-키·공급자·서버 설치본은 포함하지 않습니다. 모델 기능을 쓰려면 .env.example을 .env로 복사해
-자신의 서버 주소와 통합 키를 설정하세요. 기존 .env가 있으면 덮어쓰지 마세요.
+상담 모드는 Anthropic API 키로 Claude Haiku 5.5(`claude-haiku-5-5`)를 연동해 씁니다.
+키는 저장소에 없으니 .env.example을 .env로 복사해 `ANTHROPIC_API_KEY`에 직접 넣으세요.
+기존 .env가 있으면 덮어쓰지 마세요.
 
 ## 모델 없이 먼저 확인
 
